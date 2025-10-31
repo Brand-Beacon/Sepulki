@@ -43,7 +43,7 @@ function TasksPageContent() {
       <div className="mb-8">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">📋 Task Management</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Task Management</h1>
             <p className="text-gray-600 mt-2">Monitor and manage robot tasks</p>
           </div>
           <div className="flex space-x-4">
@@ -66,7 +66,7 @@ function TasksPageContent() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
-            <div className="text-2xl mr-3">📋</div>
+            <div className="text-2xl mr-3"></div>
             <div>
               <p className="text-sm font-medium text-gray-500">Total Tasks</p>
               <p className="text-2xl font-bold text-gray-900">{tasks.length}</p>
@@ -75,7 +75,7 @@ function TasksPageContent() {
         </div>
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
-            <div className="text-2xl mr-3">⚡</div>
+            <div className="text-2xl mr-3"></div>
             <div>
               <p className="text-sm font-medium text-gray-500">In Progress</p>
               <p className="text-2xl font-bold text-gray-900">
@@ -86,7 +86,7 @@ function TasksPageContent() {
         </div>
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
-            <div className="text-2xl mr-3">⏳</div>
+            <div className="text-2xl mr-3"></div>
             <div>
               <p className="text-sm font-medium text-gray-500">Pending</p>
               <p className="text-2xl font-bold text-gray-900">
@@ -97,7 +97,7 @@ function TasksPageContent() {
         </div>
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
-            <div className="text-2xl mr-3">✅</div>
+            <div className="text-2xl mr-3"></div>
             <div>
               <p className="text-sm font-medium text-gray-500">Completed</p>
               <p className="text-2xl font-bold text-gray-900">

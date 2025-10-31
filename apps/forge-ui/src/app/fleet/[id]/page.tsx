@@ -53,7 +53,9 @@ function FleetDetailPageContent() {
     )
   }
 
-  const fleet = data?.fleet
+  const fleet = (data && typeof data === 'object' && 'fleet' in data) 
+    ? (data as { fleet?: any }).fleet 
+    : undefined
   const robots = fleet?.robots || []
 
   const getStatusColor = (status: string) => {
@@ -189,7 +191,8 @@ function FleetDetailPageContent() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">Robots</h2>
           <div className="space-y-4">
             {robots.map((robot: any) => {
-              const connection = telemetryData?.bellowsStream?.metrics?.find((m: any) => m.robotId === robot.id)
+              const bellowsData = telemetryData as { bellowsStream?: { metrics?: Array<{ robotId?: string; batteryLevel?: number }> } } | undefined
+              const connection = bellowsData?.bellowsStream?.metrics?.find((m: any) => m.robotId === robot.id)
               const batteryLevel = connection?.batteryLevel ?? robot.batteryLevel ?? 0
               
               return (

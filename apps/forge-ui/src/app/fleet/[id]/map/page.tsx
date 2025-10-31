@@ -40,7 +40,9 @@ function FleetMapPageContent() {
     )
   }
 
-  const fleet = data?.fleet
+  const fleet = (data && typeof data === 'object' && 'fleet' in data) 
+    ? (data as { fleet?: any }).fleet 
+    : undefined
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">

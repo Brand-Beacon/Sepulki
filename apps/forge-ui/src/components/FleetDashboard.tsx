@@ -24,22 +24,29 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
     fetchPolicy: 'cache-and-network'
   })
 
+  // Get fleets with proper type guard
+  const fleets = (fleetsData && typeof fleetsData === 'object' && 'fleets' in fleetsData) 
+    ? (fleetsData as { fleets?: any[] }).fleets || []
+    : []
+  const firstFleetId = fleets.length > 0 ? fleets[0]?.id : undefined
+
   // Subscribe to fleet telemetry (real-time updates)
   const { data: telemetryData } = useSubscription(BELLOWS_STREAM_SUBSCRIPTION, {
-    variables: { fleetId: fleetsData?.fleets[0]?.id },
-    skip: !fleetsData?.fleets?.[0]?.id,
+    variables: { fleetId: firstFleetId },
+    skip: !firstFleetId,
   })
 
   const [robotStatuses, setRobotStatuses] = useState<Record<string, any>>({})
 
   // Subscribe to individual robot status updates
   useEffect(() => {
-    if (fleetsData?.fleets) {
+    if (fleets.length > 0) {
       // For now, just update from telemetry stream
       // In production, would subscribe to each robot individually
-      if (telemetryData?.bellowsStream?.metrics) {
+      const bellowsData = telemetryData as { bellowsStream?: { metrics?: any[] } } | undefined
+      if (bellowsData?.bellowsStream?.metrics) {
         const statuses: Record<string, any> = {}
-        telemetryData.bellowsStream.metrics.forEach((metric: any) => {
+        bellowsData.bellowsStream.metrics.forEach((metric: any) => {
           statuses[metric.robotId] = {
             batteryLevel: metric.batteryLevel,
             healthScore: metric.healthScore,
@@ -69,7 +76,6 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
     )
   }
 
-  const fleets = fleetsData?.fleets || []
   const allRobots = fleets.flatMap((fleet: any) => fleet.robots || [])
   
   // Calculate statistics
@@ -119,7 +125,7 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
-            <div className="text-2xl mr-3">🏭</div>
+            <div className="text-2xl mr-3"></div>
             <div>
               <p className="text-sm font-medium text-gray-500">Active Fleets</p>
               <p className="text-2xl font-bold text-gray-900">{activeFleets}</p>
@@ -129,7 +135,7 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
 
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center">
-            <div className="text-2xl mr-3">🤖</div>
+            <div className="text-2xl mr-3"></div>
             <div>
               <p className="text-sm font-medium text-gray-500">Working Robots</p>
               <p className="text-2xl font-bold text-gray-900">{workingRobots}</p>

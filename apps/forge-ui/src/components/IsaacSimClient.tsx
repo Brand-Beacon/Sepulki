@@ -75,19 +75,19 @@ export function IsaacSimClient({
       }
 
       websocket.onclose = () => {
-        console.log('🔌 WebSocket disconnected')
+        console.log('WebSocket disconnected')
         setConnectionState('disconnected')
         onConnectionChange?.(false)
       }
 
       websocket.onerror = (error) => {
-        console.error('❌ WebSocket error:', error)
+        console.error('WebSocket error:', error)
         setConnectionState('error')
         onError?.(new Error('WebSocket connection failed'))
       }
 
     } catch (error) {
-      console.error('❌ Connection failed:', error)
+      console.error('Connection failed:', error)
       setConnectionState('error')
       onError?.(error as Error)
     }
@@ -96,7 +96,7 @@ export function IsaacSimClient({
   const handleWebSocketMessage = async (data: any) => {
     switch (data.type) {
       case 'connection_established':
-        console.log('✅ Connection established:', data)
+        console.log('Connection established:', data)
         await initializeWebRTC()
         break
 
@@ -165,7 +165,7 @@ export function IsaacSimClient({
       }
 
     } catch (error) {
-      console.error('❌ WebRTC initialization failed:', error)
+      console.error('WebRTC initialization failed:', error)
       onError?.(error as Error)
     }
   }
@@ -186,7 +186,7 @@ export function IsaacSimClient({
         }))
       }
     } catch (error) {
-      console.error('❌ Failed to handle offer:', error)
+      console.error('Failed to handle offer:', error)
     }
   }
 
@@ -197,7 +197,7 @@ export function IsaacSimClient({
 
       await peerConnection.setRemoteDescription({ sdp, type: 'answer' })
     } catch (error) {
-      console.error('❌ Failed to handle answer:', error)
+      console.error('Failed to handle answer:', error)
     }
   }
 
@@ -208,7 +208,7 @@ export function IsaacSimClient({
 
       await peerConnection.addIceCandidate(candidate)
     } catch (error) {
-      console.error('❌ Failed to add ICE candidate:', error)
+      console.error('Failed to add ICE candidate:', error)
     }
   }
 
@@ -389,13 +389,6 @@ export function IsaacSimClient({
     </div>
   )
 
-  // Expose methods for parent component
-  React.useImperativeHandle(React.forwardRef(() => null), () => ({
-    updateJointStates,
-    updateCamera,
-    requestKeyframe,
-    connect,
-    disconnect,
-    isConnected: connectionState === 'connected'
-  }))
+  // Note: Methods are available via callbacks (onJointControl, onCameraControl)
+  // No need for imperative handle since component manages its own state
 }

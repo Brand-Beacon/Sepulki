@@ -84,14 +84,14 @@ export default function DesignNewPage() {
                     className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
                     onClick={() => handleExampleClick("I need a robot to pick and pack items from shelves in my warehouse")}
                   >
-                    <p className="text-gray-700">🏭 Warehouse Automation</p>
+                    <p className="text-gray-700">Warehouse Automation</p>
                     <p className="text-sm text-gray-500">Example: "I need a robot to pick and pack items from shelves in my warehouse"</p>
                   </div>
                   <div
                     className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
                     onClick={() => handleExampleClick("Looking for a robot to assist with circuit board assembly and soldering")}
                   >
-                    <p className="text-gray-700">⚙️ Assembly Line</p>
+                    <p className="text-gray-700">Assembly Line</p>
                     <p className="text-sm text-gray-500">Example: "Looking for a robot to assist with circuit board assembly and soldering"</p>
                   </div>
                   <div

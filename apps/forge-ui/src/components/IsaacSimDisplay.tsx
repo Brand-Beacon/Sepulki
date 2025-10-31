@@ -110,18 +110,19 @@ export function IsaacSimDisplay({
         // Store session ID for robot changes
         localStorage.setItem('isaac_sim_session_id', session.sessionId)
         
-        console.log('✅ Isaac Sim session created:', session.sessionId)
-        console.log('🌐 WebRTC URL:', session.webrtcUrl)
+        console.log('Isaac Sim session created:', session.sessionId)
+        console.log('WebRTC URL:', session.webrtcUrl)
 
         setConnectionState('connected')
         setLoading(false)
         
       } catch (error) {
-        console.error('❌ Isaac Sim session creation failed:', error)
+        console.error('Isaac Sim session creation failed:', error)
         setConnectionState('error')
-        setError(error.message)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        setError(errorMessage)
         setLoading(false)
-        onError?.(error as Error)
+        onError?.(error instanceof Error ? error : new Error(errorMessage))
       }
     }
 
@@ -169,11 +170,11 @@ export function IsaacSimDisplay({
       })
 
       if (response.ok) {
-        console.log('🤖 Joint control sent to Isaac Sim:', jointName, value)
+        console.log('Joint control sent to Isaac Sim:', jointName, value)
         onJointControl?.({ [jointName]: value })
       }
     } catch (error) {
-      console.error('❌ Failed to send joint control:', error)
+      console.error('Failed to send joint control:', error)
     }
   }
 
@@ -199,10 +200,10 @@ export function IsaacSimDisplay({
       })
 
       if (response.ok) {
-        console.log('📹 Camera control sent to Isaac Sim:', cameraConfig)
+        console.log('Camera control sent to Isaac Sim:', cameraConfig)
       }
     } catch (error) {
-      console.error('❌ Failed to send camera control:', error)
+      console.error('Failed to send camera control:', error)
     }
   }
 
@@ -221,7 +222,7 @@ export function IsaacSimDisplay({
         }
       }
     } catch (error) {
-      console.error('❌ Fullscreen toggle failed:', error)
+      console.error('Fullscreen toggle failed:', error)
     }
   }
 
@@ -377,7 +378,7 @@ export function IsaacSimDisplay({
               </div>
               <div className="flex justify-between">
                 <span>Status:</span>
-                <span className="text-green-400 font-semibold">✅ Connected</span>
+                <span className="text-green-400 font-semibold">Connected</span>
               </div>
             </div>
 

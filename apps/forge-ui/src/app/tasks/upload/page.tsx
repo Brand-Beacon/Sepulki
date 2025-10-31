@@ -175,7 +175,7 @@ function TasksUploadPageContent() {
         {/* Success Message */}
         {success && uploadResult && (
           <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-green-800 font-medium">✅ Upload successful!</p>
+            <p className="text-green-800 font-medium">Upload successful!</p>
             <div className="mt-2 space-y-1 text-sm text-green-700">
               <p>File: {uploadResult.fileName}</p>
               {uploadResult.taskId && (
@@ -192,7 +192,7 @@ function TasksUploadPageContent() {
         {/* Error Message */}
         {error && (
           <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-red-800 font-medium">❌ {error}</p>
+            <p className="text-red-800 font-medium">{error}</p>
           </div>
         )}
 

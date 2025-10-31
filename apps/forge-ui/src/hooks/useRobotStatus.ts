@@ -17,15 +17,21 @@ export function useRobotStatus(robotId: string) {
   
   const { data, loading, error } = useSubscription(ROBOT_STATUS_SUBSCRIPTION, {
     variables: { robotId },
-    skip: !robotId,
-    onError: (err) => {
-      console.error('Robot status subscription error:', err)
-    }
+    skip: !robotId
   })
 
   useEffect(() => {
-    if (data?.robotStatus) {
-      setRobot(data.robotStatus)
+    if (error) {
+      console.error('Robot status subscription error:', error)
+    }
+  }, [error])
+
+  useEffect(() => {
+    const dataTyped = (data && typeof data === 'object' && 'robotStatus' in data) 
+      ? (data as { robotStatus?: any }) 
+      : undefined
+    if (dataTyped?.robotStatus) {
+      setRobot(dataTyped.robotStatus)
     }
   }, [data])
 
@@ -35,4 +41,5 @@ export function useRobotStatus(robotId: string) {
     error
   }
 }
+
 

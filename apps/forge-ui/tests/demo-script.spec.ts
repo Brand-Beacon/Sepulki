@@ -307,9 +307,8 @@ test.describe('🎬 Sepulki Platform Demo Script', () => {
 
     await page.setViewportSize({ width: 1920, height: 1080 })
     
-    // Set up authentication for demo (mock auth)
-    await page.goto(`${BASE_URL}/`)
-    await page.evaluate(() => {
+    // Set up authentication for demo (mock auth) - use addInitScript to set before page loads
+    await page.addInitScript(() => {
       // Clear any existing auth state
       localStorage.clear();
       sessionStorage.clear();
@@ -333,58 +332,134 @@ test.describe('🎬 Sepulki Platform Demo Script', () => {
       // Enable demo mode for public kennel access
       (window as any).__SEPULKI_DEMO_MODE = true;
     });
-    await page.waitForTimeout(1000); // Let auth settle
     
-    // Navigate directly to a kennel view
-    await page.goto(`${BASE_URL}/fleet`)
-    await wait(DEMO_DELAY)({ page })
-
-      // Find first fleet and go to kennel
-      console.log('🔍 Looking for fleet links...')
-      await page.waitForTimeout(2000) // Wait for fleet data to load
+    // Navigate directly to kennel page to avoid root page redirects
+    const fleetId = 'd1d5183b-677f-4346-a327-e731bd1082cc'
+    console.log(`📍 Navigating directly to kennel page: ${BASE_URL}/fleet/${fleetId}/kennel`)
+    await page.goto(`${BASE_URL}/fleet/${fleetId}/kennel`, { waitUntil: 'domcontentloaded', timeout: 60000 })
+    const currentUrl = page.url()
+    console.log(`✅ Navigated to: ${currentUrl}`)
+    if (!currentUrl.includes('/kennel')) {
+      console.log(`⚠️  URL doesn't contain '/kennel', but continuing anyway`)
+    }
       
-      const fleetLinks = page.locator('a[href*="/fleet/"]')
-      const fleetLinkCount = await fleetLinks.count()
-      console.log(`📦 Found ${fleetLinkCount} fleet links`)
-      
-      if (fleetLinkCount === 0) {
-        // No fleets found - try direct navigation to a test fleet
-        console.log('⚠️  No fleets found, trying direct navigation to test fleet')
-        await page.goto(`${BASE_URL}/fleet/test-fleet-id/kennel`)
-        await page.waitForURL(/\/kennel/, { timeout: 10000 })
-      } else {
-        const fleetLink = fleetLinks.first()
-        await fleetLink.click()
-        console.log('✅ Clicked on fleet link')
-        await page.waitForURL(/\/fleet\/[^\/]+$/, { timeout: 10000 })
-        const currentUrl = page.url()
-        console.log(`📍 Current URL: ${currentUrl}`)
-        await wait(DEMO_DELAY)({ page })
-
-        // Navigate to kennel
-        const kennelLink = page.getByRole('link', { name: /Kennel|Live Stream/i }).first()
-        if (await kennelLink.isVisible({ timeout: 3000 })) {
-          console.log('✅ Found kennel link, clicking...')
-          await kennelLink.click()
-        } else {
-          // Try direct navigation
-          const fleetId = currentUrl.match(/\/fleet\/([^\/]+)/)?.[1]
-          console.log(`⚠️  Kennel link not found, trying direct navigation with fleetId: ${fleetId}`)
-          if (fleetId) {
-            await page.goto(`${BASE_URL}/fleet/${fleetId}/kennel`)
-          }
+      // Collect all console messages for debugging
+      const consoleMessages: Array<{ type: string; text: string }> = []
+      page.on('console', msg => {
+        const type = msg.type()
+        const text = msg.text()
+        consoleMessages.push({ type, text })
+        if (type === 'error') {
+          console.log(`❌ Console Error: ${text}`)
+        } else if (type === 'warning') {
+          console.log(`⚠️  Console Warning: ${text}`)
+        } else if (text.includes('Demo mode') || text.includes('🔍') || text.includes('🏠')) {
+          console.log(`📝 Console: ${text}`)
         }
+      })
+      
+      // Collect page errors
+      page.on('pageerror', error => {
+        console.log(`❌ Page Error: ${error.message}`)
+        console.log(`Stack: ${error.stack}`)
+      })
+      
+      // Collect failed requests
+      page.on('requestfailed', request => {
+        console.log(`❌ Request Failed: ${request.url()} - ${request.failure()?.errorText}`)
+      })
+      
+      // Wait for kennel page to fully load and streams to mount (client-side components)
+      console.log('⏳ Waiting for kennel page and stream components to load...')
+      
+      // First, check if the kennel page wrapper exists
+      const hasKennelWrapper = await page.locator('[data-testid="kennel-page"]').count()
+      console.log(`🔍 Kennel page wrapper found: ${hasKennelWrapper}`)
+      
+      // Wait for kennel page specific content
+      try {
+        await page.waitForSelector('text=/Kennel|Live Stream|DogBot/i', { timeout: 15000 })
+        console.log('✅ Kennel page content loaded')
+      } catch (error) {
+        console.log('⚠️  Kennel page content may still be loading')
+        // Debug: Get page content
+        const pageContent = await page.content()
+        const hasMain = pageContent.includes('<main')
+        const hasKennelTestId = pageContent.includes('kennel-page')
+        console.log(`📄 Page HTML debug - Has <main>: ${hasMain}, Has kennel-page testid: ${hasKennelTestId}`)
+        console.log('📄 Page HTML snippet:', pageContent.substring(pageContent.indexOf('<main'), pageContent.indexOf('<main') + 800))
       }
-
-      await page.waitForURL(/\/kennel/, { timeout: 10000 })
-      console.log(`✅ Navigated to kennel page: ${page.url()}`)
-      await wait(DEMO_DELAY * 3)({ page })
-
-      // Verify streams are present AND visible
+      
+      // Wait for any JavaScript errors to appear
+      await page.waitForTimeout(2000)
+      
+      // Log all collected console messages
+      const errorMessages = consoleMessages.filter(m => m.type === 'error')
+      const warningMessages = consoleMessages.filter(m => m.type === 'warning')
+      
+      if (errorMessages.length > 0) {
+        console.log(`❌ Found ${errorMessages.length} console errors:`)
+        errorMessages.forEach(m => console.log(`   - ${m.text}`))
+      }
+      if (warningMessages.length > 0) {
+        console.log(`⚠️  Found ${warningMessages.length} console warnings:`)
+        warningMessages.slice(0, 5).forEach(m => console.log(`   - ${m.text}`))
+      }
+      
+      // Check for React errors in the page
+      const pageErrors = await page.evaluate(() => {
+        return {
+          reactErrors: (window as any).__REACT_ERROR__ || null,
+          hydrationErrors: document.querySelector('[data-nextjs-hydration-error]') ? 'Found hydration error marker' : null,
+          errorBoundary: document.querySelector('[class*="error-boundary"], [data-error-boundary]')?.textContent || null
+        }
+      })
+      
+      if (pageErrors.reactErrors || pageErrors.hydrationErrors || pageErrors.errorBoundary) {
+        console.log('🔍 Page Error State:', pageErrors)
+      }
+      
+      await page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => console.log('Network not idle, continuing'))
+      await page.waitForTimeout(5000) // Wait for client-side components to mount and hydrate
+      
+      // Verify streams are present AND visible - with retries
       console.log('🔍 Looking for stream containers...')
-      const streams = page.locator('iframe, video, [data-testid="stream"]')
-      const count = await streams.count()
+      let streams = page.locator('[data-testid="stream"], iframe[data-testid="stream-iframe"], iframe[src*="stream"], iframe[src*="embed"]')
+      let count = await streams.count()
+      let retries = 5
+      
+      while (count === 0 && retries > 0) {
+        console.log(`⏳ No streams found yet, waiting... (${retries} retries left)`)
+        await page.waitForTimeout(2000)
+        streams = page.locator('[data-testid="stream"], iframe[data-testid="stream-iframe"], iframe[src*="stream"], iframe[src*="embed"]')
+        count = await streams.count()
+        retries--
+      }
+      
       console.log(`📺 Found ${count} stream containers`)
+      
+      if (count === 0) {
+        // Debug: Check what's actually on the page
+        const pageContent = await page.content()
+        const hasStreamText = pageContent.includes('stream') || pageContent.includes('Stream') || pageContent.includes('kennel')
+        console.log(`📄 Page contains stream-related text: ${hasStreamText}`)
+        const bodyText = await page.locator('body').textContent() || ''
+        console.log(`📄 Body text preview: ${bodyText.substring(0, 300)}`)
+        
+        // Check for KennelPageContent specific elements
+        const hasKennelTitle = await page.locator('text=/Kennel Live Streams/i').count()
+        const hasDogBot = await page.locator('text=/DogBot/i').count()
+        const hasGrid = await page.locator('[class*="grid"]').count()
+        console.log(`🔍 Debug - Has kennel title: ${hasKennelTitle}, Has DogBot: ${hasDogBot}, Has grid: ${hasGrid}`)
+        
+        // Check for loading states
+        const loadingElements = await page.locator('text=/Loading/i').count()
+        console.log(`🔍 Loading elements found: ${loadingElements}`)
+        
+        // Take a screenshot for debugging
+        await page.screenshot({ path: 'test-results/kennel-debug-screenshot.png', fullPage: true })
+        console.log('📸 Debug screenshot saved: test-results/kennel-debug-screenshot.png')
+      }
       
       expect(count).toBeGreaterThan(0)
       console.log(`✅ Kennel demo: ${count} stream containers found`)

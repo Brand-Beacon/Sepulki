@@ -36,8 +36,9 @@ export function useFleetStatus(fleetId: string) {
   })
 
   useEffect(() => {
-    if (data?.bellowsStream) {
-      setStatus(data.bellowsStream)
+    const bellowsData = data as { bellowsStream?: any } | undefined
+    if (bellowsData?.bellowsStream) {
+      setStatus(bellowsData.bellowsStream)
     }
   }, [data])
 

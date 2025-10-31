@@ -9,14 +9,16 @@ export default function Home() {
   const { smith, loading } = useAuth();
 
   useEffect(() => {
+    // Prevent multiple redirects
     if (loading) return; // Wait for auth to finish loading
     
+    // Use replace instead of push to avoid back button issues
     if (smith) {
       // Authenticated users go to fleet dashboard
-      router.push('/fleet');
+      router.replace('/fleet');
     } else {
-      // New users go to design page
-      router.push('/design/new');
+      // Unauthenticated users go to signin page
+      router.replace('/auth/signin');
     }
   }, [smith, loading, router]);
 

@@ -68,7 +68,13 @@ export function RoutePreview({ file }: RoutePreviewProps) {
 
   if (!file) return null
 
-  const waypoints = parsedRoute?.waypoints || parsedRoute?.points || []
+  const waypoints: Array<{
+    lat?: number
+    lng?: number
+    x?: number
+    y?: number
+    sequence?: number
+  }> = parsedRoute?.waypoints || parsedRoute?.points || []
 
   return (
     <div className="mt-6 bg-white rounded-lg shadow-sm border p-6">
@@ -80,7 +86,7 @@ export function RoutePreview({ file }: RoutePreviewProps) {
       {error ? (
         <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
           <p className="text-sm text-yellow-800">
-            ⚠️ {error} - File will be uploaded but may need manual review.
+            {error} - File will be uploaded but may need manual review.
           </p>
         </div>
       ) : waypoints.length > 0 ? (

@@ -20,6 +20,7 @@ export interface EnvironmentConfig {
   // Authentication
   useRealAuth: boolean
   authProviders: string[]
+  localAuthUrl: string
   
   // Storage
   minioEndpoint?: string
@@ -80,6 +81,10 @@ function createEnvironmentConfig(): EnvironmentConfig {
   const isaacSimPort = process.env.NEXT_PUBLIC_ISAAC_SIM_PORT ||
     '8211'
 
+  // Local Auth Service URL (use 127.0.0.1 to avoid IPv6 issues)
+  const localAuthUrl = process.env.NEXT_PUBLIC_LOCAL_AUTH_URL ||
+    'http://127.0.0.1:4446'
+
   // Determine auth providers available
   const authProviders: string[] = []
   if (process.env.GITHUB_CLIENT_ID) authProviders.push('github')
@@ -107,6 +112,7 @@ function createEnvironmentConfig(): EnvironmentConfig {
     // Authentication
     useRealAuth,
     authProviders,
+    localAuthUrl,
     
     // Storage
     minioEndpoint: process.env.NEXT_PUBLIC_MINIO_ENDPOINT,
@@ -128,7 +134,7 @@ export const shouldUseRealAuth = () => env.useRealAuth
 
 // Development helpers
 if (env.isDevelopment) {
-  console.log('🔧 Sepulki Environment Configuration:', {
+  console.log('Sepulki Environment Configuration:', {
     platform: env.deploymentPlatform,
     auth: env.authProviders,
     graphql: env.graphqlEndpoint,

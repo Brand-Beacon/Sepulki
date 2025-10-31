@@ -103,7 +103,7 @@ function ConfigureContent() {
     console.log('📄 Analysis text preview:', storedAnalysis.substring(0, 200));
 
     // TEMP: Force some robots for testing video functionality
-    const testRobots = [
+    const testRobots: IsaacSimRobot[] = [
       {
         id: 'franka_panda',
         name: 'Franka Emika Panda',
@@ -121,7 +121,7 @@ function ConfigureContent() {
           workspace_description: 'Spherical workspace with full orientation'
         },
         use_cases: ['assembly', 'packaging', 'quality inspection'],
-        environments: ['warehouse', 'factory', 'lab'] as const,
+        environments: (['warehouse', 'factory', 'lab'] as const).slice() as ('warehouse' | 'factory' | 'lab' | 'outdoor' | 'cleanroom')[],
         isaac_sim_features: {
           physics_simulation: true,
           collision_detection: true,
@@ -130,10 +130,10 @@ function ConfigureContent() {
           vision_integration: true
         }
       }
-    ];
+    ] as IsaacSimRobot[];
 
     // Select the first recommended robot as default
-    const finalRobots = testRobots.length > 0 ? testRobots : robots;
+    const finalRobots: IsaacSimRobot[] = testRobots.length > 0 ? testRobots as IsaacSimRobot[] : robots;
     if (finalRobots.length > 0) {
       setRecommendedRobots(finalRobots);
       setSelectedRobot(finalRobots[0]);

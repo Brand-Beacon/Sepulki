@@ -94,8 +94,8 @@ describe('My Designs Page', () => {
       });
 
       // Verify design details are displayed
-      expect(screen.getByText('🔥 FORGING')).toBeInTheDocument();
-      expect(screen.getByText('⚪ READY')).toBeInTheDocument();
+      expect(screen.getByText('FORGING')).toBeInTheDocument();
+      expect(screen.getByText('READY')).toBeInTheDocument();
       expect(screen.getByText('Industrial Arm - 6DOF')).toBeInTheDocument();
       expect(screen.getAllByText('1.0.0')).toHaveLength(2); // Version numbers
     });
@@ -255,7 +255,7 @@ describe('My Designs Page', () => {
         expect(screen.getByText('Actionable Robot')).toBeInTheDocument();
       });
 
-      const deleteButton = screen.getByRole('button', { name: '🗑️' });
+      const deleteButton = screen.getByRole('button', { name: 'Delete' });
       await user.click(deleteButton);
 
       await waitFor(() => {
@@ -283,7 +283,7 @@ describe('My Designs Page', () => {
         expect(screen.getByText('Actionable Robot')).toBeInTheDocument();
       });
 
-      const deleteButton = screen.getByRole('button', { name: '🗑️' });
+      const deleteButton = screen.getByRole('button', { name: 'Delete' });
       await user.click(deleteButton);
 
       expect(confirmSpy).toHaveBeenCalled();
@@ -335,7 +335,7 @@ describe('My Designs Page', () => {
       renderWithAuth(<MyDesignsPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('📊 Design Portfolio Summary')).toBeInTheDocument();
+        expect(screen.getByText('Design Portfolio Summary')).toBeInTheDocument();
       });
 
       // Verify statistics
@@ -446,7 +446,7 @@ describe('My Designs Page', () => {
       await user.click(buildButton);
 
       // Should show loading state
-      expect(screen.getByText('⏳ Build')).toBeInTheDocument();
+      expect(screen.getByText('Build')).toBeInTheDocument();
       expect(buildButton).toBeDisabled();
     });
 
@@ -550,7 +550,7 @@ describe('My Designs Page', () => {
       const editLink = screen.getByRole('link', { name: /edit/i });
       const duplicateButton = screen.getByRole('button', { name: /duplicate/i });
       const buildButton = screen.getByRole('button', { name: /build/i });
-      const deleteButton = screen.getByRole('button', { name: '🗑️' });
+      const deleteButton = screen.getByRole('button', { name: 'Delete' });
 
       expect(editLink).toBeInTheDocument();
       expect(duplicateButton).toBeInTheDocument();

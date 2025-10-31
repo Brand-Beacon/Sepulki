@@ -26,7 +26,7 @@ function FleetPageContent() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-              ⚒️ Fleet Dashboard
+              Fleet Dashboard
               {smith && (
                 <span className="ml-4 text-lg font-normal text-gray-600">
                   Welcome, {smith.name}
@@ -40,7 +40,7 @@ function FleetPageContent() {
           <div className="mt-4 bg-orange-50 border border-orange-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-orange-800 font-medium">🚀 Ready to Deploy</p>
+                <p className="text-orange-800 font-medium">Ready to Deploy</p>
                 <p className="text-sm text-orange-600">Select a fleet below to deploy your robot design</p>
               </div>
               <Link

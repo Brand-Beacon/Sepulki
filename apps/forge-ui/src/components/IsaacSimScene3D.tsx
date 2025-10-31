@@ -95,7 +95,7 @@ export function IsaacSimScene3D({
         },
         body: JSON.stringify({
           user_id: userId,
-          sepulka_id: spec?.id || 'demo-robot',
+          sepulka_id: (spec as any)?.id || 'demo-robot',
           environment,
           quality_profile: qualityProfile,
           urdf_content: typeof urdf === 'string' ? urdf : urdf?.toString()
@@ -112,17 +112,17 @@ export function IsaacSimScene3D({
         throw new Error(data.message || 'Session creation failed')
       }
       
-      console.log('✅ Isaac Sim session created:', data.session_id)
+      console.log('Isaac Sim session created:', data.session_id)
       return data.session_id
       
     } catch (error) {
-      console.error('❌ Failed to create Isaac Sim session:', error)
+      console.error('Failed to create Isaac Sim session:', error)
       setError(`Session creation failed: ${error}`)
       setConnectionState('error')
       onError?.(error as Error)
       return null
     }
-  }, [userId, spec?.id, environment, qualityProfile, urdf, onError])
+  }, [userId, (spec as any)?.id, environment, qualityProfile, urdf, onError])
 
   // Initialize Isaac Sim connection
   useEffect(() => {

@@ -36,7 +36,7 @@ export function SuggestedComponents({ analysis, userInput }: { analysis: string;
       {cards.map((c, i) => (
         <div key={i} className="flex items-start space-x-4">
           <div className="flex-shrink-0">
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">⚙️</div>
+            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center"></div>
           </div>
           <div>
             <h3 className="font-medium text-gray-900">{c.title}</h3>

@@ -38,7 +38,9 @@ function AllFleetsMapPageContent() {
     )
   }
 
-  const fleets = data?.fleets || []
+  const fleets = (data && typeof data === 'object' && 'fleets' in data) 
+    ? (data as { fleets?: any[] }).fleets || []
+    : []
   const allRobots = fleets.flatMap((fleet: any) => fleet.robots || [])
 
   return (

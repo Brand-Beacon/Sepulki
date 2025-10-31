@@ -35,9 +35,20 @@ async function startServer() {
 
   await server.start();
 
-  // Apply CORS and JSON parsing globally
+  // Apply CORS and JSON parsing globally - Allow both localhost and 127.0.0.1
   app.use(cors<cors.CorsRequest>({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: (origin, callback) => {
+      // Allow requests from localhost:3000 or 127.0.0.1:3000
+      const allowedOrigins = [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+      ];
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
     credentials: true,
   }))
   app.use(express.json())

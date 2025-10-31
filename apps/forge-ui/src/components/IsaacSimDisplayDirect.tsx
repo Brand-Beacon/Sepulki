@@ -69,7 +69,7 @@ export function IsaacSimDisplayDirect({
         }
       }
     } catch (error) {
-      console.error('❌ Fullscreen toggle failed:', error)
+      console.error('Fullscreen toggle failed:', error)
     }
   }
 
@@ -179,7 +179,7 @@ export function IsaacSimDisplayDirect({
               </div>
               <div className="flex justify-between">
                 <span>Status:</span>
-                <span className="text-green-400 font-semibold">✅ Connected</span>
+                <span className="text-green-400 font-semibold">Connected</span>
               </div>
             </div>
 

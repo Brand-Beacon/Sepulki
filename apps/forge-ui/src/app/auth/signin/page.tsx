@@ -11,9 +11,9 @@ export default function SignInPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // If already authenticated, redirect to dashboard
+    // If already authenticated, redirect to home (which will route appropriately)
     if (smith) {
-      router.push('/dashboard')
+      router.push('/')
     }
   }, [smith, router])
 
@@ -34,7 +34,7 @@ export default function SignInPage() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            🔥 Welcome to Sepulki Forge
+            Welcome to Sepulki Forge
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
             Design and deploy robots with our comprehensive platform
@@ -43,27 +43,100 @@ export default function SignInPage() {
         
         <div className="mt-8 space-y-6">
           {authMode === 'mock' && (
-            <div className="rounded-md bg-blue-50 p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <span className="text-2xl">🧪</span>
+            <div className="space-y-4">
+              <div className="rounded-md bg-blue-50 p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <span className="text-2xl"></span>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-blue-800">
+                      Local Authentication Service
+                    </h3>
+                    <div className="mt-2 text-sm text-blue-700">
+                      <p>Sign in with your credentials to access Sepulki Forge.</p>
+                    </div>
+                  </div>
                 </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-blue-800">
-                    Development Mode Active
-                  </h3>
-                  <div className="mt-2 text-sm text-blue-700">
-                    <p>You're automatically signed in as <strong>Development Smith</strong> with Over-Smith permissions.</p>
-                    <p className="mt-1">No login required - start building immediately!</p>
-                  </div>
-                  <div className="mt-4">
-                    <Link
-                      href="/dashboard"
-                      className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      Go to Dashboard
-                    </Link>
-                  </div>
+              </div>
+              
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const formData = new FormData(e.currentTarget);
+                  const email = formData.get('email') as string;
+                  const password = formData.get('password') as string;
+                  
+                  try {
+                    const authUrl = env.localAuthUrl || 'http://127.0.0.1:4446';
+                    const response = await fetch(`${authUrl}/auth/signin`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        email,
+                        password,
+                        callbackUrl: `${window.location.origin}/`
+                      }),
+                      credentials: 'include'
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                      // Reload to get new session
+                      window.location.href = result.callbackUrl || '/';
+                    } else {
+                      alert('Sign in failed: ' + (result.error || 'Invalid credentials'));
+                    }
+                  } catch (error: any) {
+                    alert('Sign in error: ' + error.message);
+                  }
+                }}
+                className="space-y-4"
+              >
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                    Email Address
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    required
+                    placeholder="dev@sepulki.com"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+                
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                    Password
+                  </label>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    required
+                    placeholder="dev123"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-orange-500 focus:border-orange-500"
+                  />
+                </div>
+                
+                <button
+                  type="submit"
+                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
+                >
+                  Sign In to Sepulki
+                </button>
+              </form>
+              
+              <div className="rounded-md bg-gray-50 p-4">
+                <h4 className="text-sm font-medium text-gray-800 mb-2">Test Users</h4>
+                <div className="text-xs text-gray-600 space-y-1">
+                  <div><strong>dev@sepulki.com</strong> / dev123 (Over-Smith)</div>
+                  <div><strong>demo@sepulki.com</strong> / demo123 (Smith)</div>
+                  <div><strong>test@sepulki.com</strong> / test123 (Over-Smith)</div>
+                  <div><strong>admin@sepulki.com</strong> / admin123 (Admin)</div>
                 </div>
               </div>
             </div>
@@ -74,7 +147,7 @@ export default function SignInPage() {
               <div className="rounded-md bg-green-50 p-4">
                 <div className="flex">
                   <div className="flex-shrink-0">
-                    <span className="text-2xl">🔐</span>
+                    <span className="text-2xl"></span>
                   </div>
                   <div className="ml-3">
                     <h3 className="text-sm font-medium text-green-800">
@@ -117,7 +190,7 @@ export default function SignInPage() {
                 {env.authProviders.includes('local-oauth') && (
                   <button className="group relative w-full flex justify-center py-3 px-4 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">
                     <span className="absolute left-0 inset-y-0 flex items-center pl-3">
-                      <span className="text-lg">🔧</span>
+                      <span className="text-lg"></span>
                     </span>
                     Continue with Local OAuth
                   </button>
@@ -130,7 +203,7 @@ export default function SignInPage() {
             <div className="rounded-md bg-red-50 p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <span className="text-2xl">⚠️</span>
+                  <span className="text-2xl"></span>
                 </div>
                 <div className="ml-3">
                   <h3 className="text-sm font-medium text-red-800">

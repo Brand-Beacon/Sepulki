@@ -76,16 +76,20 @@ function ReviewContent() {
       let ingotId: string;
 
       // If we have a saved sepulka, cast an ingot first
-      if (sepulkaData?.sepulka?.id) {
+      const sepulka = (sepulkaData && typeof sepulkaData === 'object' && 'sepulka' in sepulkaData) 
+        ? (sepulkaData as { sepulka?: { id?: string } }).sepulka 
+        : undefined;
+      if (sepulka?.id) {
         const castResult = await castIngot({
-          variables: { sepulkaId: sepulkaData.sepulka.id }
+          variables: { sepulkaId: sepulka.id }
         });
         
-        if (castResult.data?.castIngot?.errors?.length > 0) {
-          throw new Error(castResult.data.castIngot.errors[0].message);
+        const castData = castResult.data as { castIngot?: { errors?: Array<{ message: string }>, ingot?: { id: string } } } | undefined;
+        if (castData?.castIngot?.errors?.length && castData.castIngot.errors.length > 0) {
+          throw new Error(castData.castIngot.errors[0].message);
         }
         
-        ingotId = castResult.data?.castIngot?.ingot?.id;
+        ingotId = castData?.castIngot?.ingot?.id || '';
       } else {
         // For temporary designs, we need to create the sepulka first
         // This would need to be done before reaching this page
@@ -106,8 +110,9 @@ function ReviewContent() {
         }
       });
 
-      if (quenchResult.data?.quenchToFleet?.errors?.length > 0) {
-        throw new Error(quenchResult.data.quenchToFleet.errors[0].message);
+      const quenchData = quenchResult.data as { quenchToFleet?: { errors?: Array<{ message: string }> } } | undefined;
+      if (quenchData?.quenchToFleet?.errors?.length && quenchData.quenchToFleet.errors.length > 0) {
+        throw new Error(quenchData.quenchToFleet.errors[0].message);
       }
 
       // Success! Redirect to fleet page
@@ -118,8 +123,12 @@ function ReviewContent() {
     }
   };
 
-  const fleets = fleetsData?.fleets || [];
-  const sepulka = sepulkaData?.sepulka;
+  const fleets = (fleetsData && typeof fleetsData === 'object' && 'fleets' in fleetsData) 
+    ? (fleetsData as { fleets?: any[] }).fleets || []
+    : [];
+  const sepulka = (sepulkaData && typeof sepulkaData === 'object' && 'sepulka' in sepulkaData) 
+    ? (sepulkaData as { sepulka?: any }).sepulka 
+    : undefined;
 
   return (
     <main className="max-w-7xl mx-auto px-4 py-8">
@@ -235,7 +244,6 @@ function ReviewContent() {
           {smith && sepulka && (
             <div className="bg-white rounded-lg shadow-sm p-6 border-2 border-orange-200">
               <h2 className="text-xl font-bold text-gray-900 mb-4 flex items-center">
-                <span className="mr-2">🚀</span>
                 Deploy to Fleet
               </h2>
               <p className="text-sm text-gray-600 mb-4">
@@ -307,7 +315,6 @@ function ReviewContent() {
                       </>
                     ) : (
                       <>
-                        <span>🚀</span>
                         <span>Deploy to Fleet</span>
                       </>
                     )}
@@ -331,7 +338,6 @@ function ReviewContent() {
                 </div>
                 <div className="bg-gray-50 rounded-lg p-4 mb-2">
                   <div className="w-full h-32 bg-gray-200 rounded flex items-center justify-center">
-                    <span className="text-3xl">📦</span>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm">

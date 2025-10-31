@@ -10,6 +10,7 @@ import { BELLOWS_STREAM_SUBSCRIPTION } from '@/lib/graphql/subscriptions'
 import { MapPin, Battery, Activity, Wifi, WifiOff } from 'lucide-react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { LeafletMap } from './LeafletMap'
 
 // Dynamic import to avoid SSR issues with Leaflet
 const MapContainerDynamic = dynamic(
@@ -74,20 +75,23 @@ export function RobotMap({
   })
 
   // Subscribe to real-time telemetry
+    const fleet = (fleetData && typeof fleetData === 'object' && 'fleet' in fleetData) 
+      ? (fleetData as { fleet?: { id?: string; robots?: any[]; locus?: { coordinates?: { latitude?: number; longitude?: number; altitude?: number } } } }).fleet 
+      : undefined
   const { data: telemetryData } = useSubscription(BELLOWS_STREAM_SUBSCRIPTION, {
-    variables: { fleetId: fleetId || fleetData?.fleet?.id },
-    skip: !fleetId && !fleetData?.fleet?.id,
+    variables: { fleetId: fleetId || fleet?.id },
+    skip: !fleetId && !fleet?.id,
   })
 
   // Get robots from fleet or props
-  const fleetRobots = fleetData?.fleet?.robots || robots
+  const fleetRobots = fleet?.robots || robots
 
   // Convert robot poses to GPS coordinates
   // For now, use fleet locus coordinates as base and add pose offsets
   useEffect(() => {
-    if (fleetData?.fleet?.locus?.coordinates) {
-      const baseLat = fleetData.fleet.locus.coordinates.latitude
-      const baseLng = fleetData.fleet.locus.coordinates.longitude
+    if (fleet?.locus?.coordinates?.latitude != null && fleet?.locus?.coordinates?.longitude != null) {
+      const baseLat = fleet.locus.coordinates.latitude
+      const baseLng = fleet.locus.coordinates.longitude
       
       // Set fleet center
       setFleetCenter([baseLat, baseLng])
@@ -134,13 +138,14 @@ export function RobotMap({
 
   // Update positions from telemetry stream
   useEffect(() => {
-    if (telemetryData?.bellowsStream?.metrics) {
+    const bellowsData = telemetryData as { bellowsStream?: { metrics?: any[] } } | undefined
+    if (bellowsData?.bellowsStream?.metrics) {
       const updatedPositions = { ...robotPositions }
       
-      telemetryData.bellowsStream.metrics.forEach((metric: any) => {
+      bellowsData.bellowsStream.metrics.forEach((metric: any) => {
         if (metric.pose?.position) {
-          const baseLat = fleetData?.fleet?.locus?.coordinates?.latitude || 37.7749
-          const baseLng = fleetData?.fleet?.locus?.coordinates?.longitude || -122.4194
+          const baseLat = fleet?.locus?.coordinates?.latitude || 37.7749
+          const baseLng = fleet?.locus?.coordinates?.longitude || -122.4194
           
           const offsetLat = metric.pose.position.y * 0.000009
           const offsetLng = metric.pose.position.x * 0.000009 / Math.cos(baseLat * Math.PI / 180)
@@ -194,7 +199,8 @@ export function RobotMap({
     .filter((robot: any) => robotPositions[robot.id])
     .map((robot: any) => {
       const position = robotPositions[robot.id]
-      const batteryLevel = telemetryData?.bellowsStream?.metrics?.find((m: any) => m.robotId === robot.id)?.batteryLevel || robot.batteryLevel || 0
+      const bellowsData = telemetryData as { bellowsStream?: { metrics?: Array<{ robotId?: string; batteryLevel?: number }> } } | undefined
+      const batteryLevel = bellowsData?.bellowsStream?.metrics?.find((m: any) => m.robotId === robot.id)?.batteryLevel || robot.batteryLevel || 0
       
       return {
         id: robot.id,
@@ -206,8 +212,8 @@ export function RobotMap({
       }
     })
 
-  const fleetCenterCoords = fleetData?.fleet?.locus?.coordinates
-    ? [fleetData.fleet.locus.coordinates.latitude, fleetData.fleet.locus.coordinates.longitude] as [number, number]
+  const fleetCenterCoords = fleet?.locus?.coordinates
+    ? [fleet.locus.coordinates.latitude, fleet.locus.coordinates.longitude] as [number, number]
     : undefined
 
   return (

@@ -21,7 +21,7 @@ export default function IsaacSimVideoOnly({ className = '' }: IsaacSimVideoOnlyP
         websocketRef.current = ws
 
         ws.onopen = () => {
-          console.log('✅ WebSocket connected to Isaac Sim')
+          console.log('WebSocket connected to Isaac Sim')
           setIsConnected(true)
           setConnectionStatus('connected')
           
@@ -42,23 +42,23 @@ export default function IsaacSimVideoOnly({ className = '' }: IsaacSimVideoOnlyP
               setFrameCount(prev => prev + 1)
             }
           } catch (error) {
-            console.error('❌ Error parsing WebSocket message:', error)
+            console.error('Error parsing WebSocket message:', error)
           }
         }
 
         ws.onclose = () => {
-          console.log('🔌 WebSocket disconnected')
+          console.log('WebSocket disconnected')
           setIsConnected(false)
           setConnectionStatus('disconnected')
         }
 
         ws.onerror = (error) => {
-          console.error('❌ WebSocket error:', error)
+          console.error('WebSocket error:', error)
           setConnectionStatus('error')
         }
 
       } catch (error) {
-        console.error('❌ Failed to create WebSocket connection:', error)
+        console.error('Failed to create WebSocket connection:', error)
         setConnectionStatus('error')
       }
     }
@@ -90,11 +90,11 @@ export default function IsaacSimVideoOnly({ className = '' }: IsaacSimVideoOnlyP
       // Draw image to canvas
       ctx.drawImage(img, 0, 0)
       
-      console.log(`📹 Frame ${frameCount + 1} drawn: ${img.width}x${img.height}`)
+      console.log(`Frame ${frameCount + 1} drawn: ${img.width}x${img.height}`)
     }
     
     img.onerror = (error) => {
-      console.error('❌ Error loading frame image:', error)
+      console.error('Error loading frame image:', error)
     }
     
     img.src = `data:image/jpeg;base64,${base64Data}`
@@ -115,7 +115,7 @@ export default function IsaacSimVideoOnly({ className = '' }: IsaacSimVideoOnlyP
       websocketRef.current = ws
 
       ws.onopen = () => {
-        console.log('✅ WebSocket reconnected')
+        console.log('WebSocket reconnected')
         setIsConnected(true)
         setConnectionStatus('connected')
         
@@ -133,7 +133,7 @@ export default function IsaacSimVideoOnly({ className = '' }: IsaacSimVideoOnlyP
             setFrameCount(prev => prev + 1)
           }
         } catch (error) {
-          console.error('❌ Error parsing WebSocket message:', error)
+          console.error('Error parsing WebSocket message:', error)
         }
       }
 
@@ -160,9 +160,9 @@ export default function IsaacSimVideoOnly({ className = '' }: IsaacSimVideoOnlyP
           connectionStatus === 'error' ? 'bg-red-100 text-red-800' :
           'bg-gray-100 text-gray-800'
         }`}>
-          {connectionStatus === 'connected' ? '✅ Connected' :
-           connectionStatus === 'connecting' ? '🔄 Connecting' :
-           connectionStatus === 'error' ? '❌ Error' : '⏸️ Disconnected'}
+          {connectionStatus === 'connected' ? 'Connected' :
+           connectionStatus === 'connecting' ? 'Connecting' :
+           connectionStatus === 'error' ? 'Error' : 'Disconnected'}
         </div>
         <div className="text-xs text-gray-600">
           Frames: {frameCount}

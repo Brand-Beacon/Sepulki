@@ -1,5 +1,8 @@
 import OpenAI from 'openai';
-import { generateIsaacSimRobotCatalog, selectRobotFromRequirements, ISAAC_SIM_ROBOTS } from './isaac-sim-robots';
+import { generateIsaacSimRobotCatalog, selectRobotFromRequirements, ISAAC_SIM_ROBOTS, type IsaacSimRobot } from './isaac-sim-robots';
+
+// Re-export IsaacSimRobot for convenience
+export type { IsaacSimRobot }
 
 // Check if OpenAI API key is available
 const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
@@ -307,7 +310,7 @@ ${recommendedRobots.map(robot => `
 export const analyzeRequirements = async (userInput: string, catalogText?: string) => {
   try {
     if (!hasOpenAIKey) {
-      console.log('📺 OpenAI API key not available - using mock analysis for demo');
+      console.log('OpenAI API key not available - using mock analysis for demo');
       // Simulate API delay for realistic demo experience
       await new Promise(resolve => setTimeout(resolve, 2000));
       return generateMockAnalysis(userInput, catalogText);

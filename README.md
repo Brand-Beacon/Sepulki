@@ -146,6 +146,26 @@ cd apps/forge-ui
 npm run dev
 ```
 
+### Isaac Sim & Video Streaming
+
+For 3D robot visualization with Isaac Sim:
+
+```bash
+# Start video stream proxy
+cd services/video-stream-proxy
+npm install
+npm start  # Runs on port 8889
+
+# Start Isaac Sim service (if available)
+cd services/anvil-sim
+# Follow README for deployment options
+```
+
+**Configuration**:
+- Video Proxy: `http://localhost:8889`
+- Isaac Sim endpoints: Configure via `services/anvil-sim/.env`
+- Stream URLs: See `services/video-stream-proxy/README.md`
+
 ### Database Management
 
 ```bash
@@ -167,6 +187,13 @@ npm run test:e2e
 
 # Test specific service
 npm test --workspace @sepulki/hammer-orchestrator
+
+# Run frontend tests (Playwright)
+cd apps/forge-ui
+npx playwright test
+
+# Test video streaming integration
+npx playwright test tests/video-proxy-integration.spec.ts
 ```
 
 ## 📊 GraphQL API

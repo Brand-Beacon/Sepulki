@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react'
 import { Loader2, Zap, AlertCircle, Settings, Camera, RotateCcw, Play, Pause } from 'lucide-react'
-import { IsaacSimViewer } from './IsaacSimViewer'
+// import { IsaacSimViewer } from './IsaacSimViewer' // Module not found - using placeholder
 
 interface IsaacSimDirectClientProps {
   spec?: any
@@ -69,11 +69,11 @@ export function IsaacSimDirectClient({
         setSessionId(sessionData.session_id)
         setConnectionState('connected')
         
-        console.log('✅ Isaac Sim session created:', sessionData.session_id)
+        console.log('Isaac Sim session created:', sessionData.session_id)
         
         
       } catch (error) {
-        console.error('❌ Isaac Sim connection failed:', error)
+        console.error('Isaac Sim connection failed:', error)
         setConnectionState('error')
         onError?.(error as Error)
       }
@@ -132,20 +132,20 @@ export function IsaacSimDirectClient({
   }
 
   // Connected state - show enhanced Isaac Sim visualization
+  // TODO: Replace with actual IsaacSimViewer component when available
   return (
-    <IsaacSimViewer
-      spec={spec}
-      urdf={urdf}
-      environment={environment}
-      qualityProfile={qualityProfile}
-      enablePhysics={enablePhysics}
-      sessionId={sessionId}
-      onJointControl={(jointStates) => {
-        setJointStates(jointStates)
-        onJointControl?.(jointStates)
-      }}
-      className={className}
-    />
+    <div className={`bg-gray-900 rounded-lg flex items-center justify-center ${className}`}>
+      <div className="text-center text-white p-6">
+        <Zap className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+        <div className="text-xl font-medium mb-2">Isaac Sim Connected</div>
+        <div className="text-sm text-gray-300 mb-4">
+          Session: {sessionId}
+        </div>
+        <div className="text-xs text-gray-400">
+          IsaacSimViewer component not available - using placeholder
+        </div>
+      </div>
+    </div>
   )
 
 }

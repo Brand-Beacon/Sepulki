@@ -33,7 +33,7 @@ export default function RootLayout({
                   <div className="flex">
                     <div className="flex-shrink-0 flex items-center">
                       <Link href="/" className="text-2xl font-bold text-orange-600">
-                        🔥 Sepulki
+                        Sepulki
                       </Link>
                     </div>
                     <ProtectedNavigation />

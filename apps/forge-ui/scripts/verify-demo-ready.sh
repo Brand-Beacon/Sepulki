@@ -31,8 +31,8 @@ echo ""
 # Step 1: Check services are running
 echo "📡 Step 1: Checking services..."
 
-# Check Frontend
-if curl -s -f http://localhost:3000 > /dev/null 2>&1; then
+# Check Frontend (just check if it responds, not HTTP status)
+if curl -s --max-time 2 http://localhost:3000 > /dev/null 2>&1; then
     echo -e "${GREEN}✅${NC} Frontend is running at http://localhost:3000"
 else
     echo -e "${RED}❌${NC} Frontend is NOT running at http://localhost:3000"

@@ -75,7 +75,6 @@ export function EnhancedScene3D({
   const [error, setError] = useState<string | null>(null)
   
   const robotApiRef = useRef<any>(null)
-  const isaacSimClientRef = useRef<any>(null)
 
   // Detect device capabilities
   const detectDeviceCapabilities = useCallback(async (): Promise<DeviceCapabilities> => {
@@ -122,20 +121,20 @@ export function EnhancedScene3D({
     let complexity = 0
     
     // Base complexity from alloys
-    if (spec.alloys) {
-      complexity += spec.alloys.length * 0.1
+    if ((spec as any).alloys) {
+      complexity += (spec as any).alloys.length * 0.1
     }
     
     // Add complexity for physics simulation needs
-    if (spec.parameters?.payload && spec.parameters.payload > 10) {
+    if ((spec as any).parameters?.payload && (spec as any).parameters.payload > 10) {
       complexity += 0.2 // Heavy payload needs better physics
     }
     
-    if (spec.parameters?.reach && spec.parameters.reach > 2) {
+    if ((spec as any).parameters?.reach && (spec as any).parameters.reach > 2) {
       complexity += 0.2 // Long reach needs better visualization
     }
     
-    if (spec.parameters?.precision && spec.parameters.precision < 1) {
+    if ((spec as any).parameters?.precision && (spec as any).parameters.precision < 1) {
       complexity += 0.3 // High precision needs better simulation
     }
     
@@ -268,7 +267,7 @@ export function EnhancedScene3D({
         },
         body: JSON.stringify({
           user_id: userId,
-          sepulka_id: spec?.id || 'demo-robot',
+          sepulka_id: (spec as any)?.id || 'demo-robot',
           environment,
           quality_profile: qualityProfile,
           urdf_content: typeof urdf === 'string' ? urdf : urdf?.toString()
@@ -283,7 +282,7 @@ export function EnhancedScene3D({
       console.error('Failed to create Isaac Sim session:', error)
       return null
     }
-  }, [userId, spec?.id, environment, qualityProfile, urdf])
+  }, [userId, (spec as any)?.id, environment, qualityProfile, urdf])
 
   // Initialize rendering system
   useEffect(() => {
@@ -354,11 +353,9 @@ export function EnhancedScene3D({
 
   // Handle joint control (forward to appropriate renderer)
   const handleJointControl = useCallback((jointStates: Record<string, number>) => {
-    if (currentRenderer === 'isaac_sim' && isaacSimClientRef.current) {
-      isaacSimClientRef.current.updateJointStates?.(jointStates)
-    }
+    // Joint control is handled via callbacks in IsaacSimClient
     // For Three.js, joint control is handled directly
-  }, [currentRenderer])
+  }, [])
 
   // Handle errors from either renderer
   const handleError = useCallback((error: Error | string) => {
@@ -442,7 +439,6 @@ export function EnhancedScene3D({
       {/* Render based on decision */}
       {currentRenderer === 'isaac_sim' && isaacSimSession ? (
         <IsaacSimClient
-          ref={isaacSimClientRef}
           sessionId={isaacSimSession}
           userId={userId}
           qualityProfile={qualityProfile}

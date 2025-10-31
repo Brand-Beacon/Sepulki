@@ -84,15 +84,15 @@ function ConfigureContent() {
     
     // Extract Isaac Sim robot recommendations from analysis
     const robots = extractRobotRecommendations(storedAnalysis);
-    console.log('🤖 Extracted robots from analysis:', robots);
-    console.log('📄 Analysis text preview:', storedAnalysis.substring(0, 200));
+    console.log('Extracted robots from analysis:', robots);
+    console.log('Analysis text preview:', storedAnalysis.substring(0, 200));
 
     // TEMP: Force some robots for testing video functionality
-    const testRobots = [
+    const testRobots: IsaacSimRobot[] = [
       {
         id: 'franka_panda',
         name: 'Franka Emika Panda',
-        category: 'collaborative' as const,
+        category: 'collaborative',
         manufacturer: 'Franka Emika',
         description: 'Collaborative 7-DOF robot arm designed for human-robot interaction',
         isaac_sim_path: '/NVIDIA/Assets/Isaac/4.5/Isaac/Robots/Franka/franka.usd',
@@ -106,7 +106,7 @@ function ConfigureContent() {
           workspace_description: 'Spherical workspace with full orientation'
         },
         use_cases: ['assembly', 'packaging', 'quality inspection'],
-        environments: ['warehouse', 'factory', 'lab'] as const,
+        environments: (['warehouse', 'factory', 'lab'] as const).slice() as ('warehouse' | 'factory' | 'lab' | 'outdoor' | 'cleanroom')[],
         isaac_sim_features: {
           physics_simulation: true,
           collision_detection: true,
@@ -115,10 +115,10 @@ function ConfigureContent() {
           vision_integration: true
         }
       }
-    ];
+    ] as IsaacSimRobot[];
 
     // Select the first recommended robot as default
-    const finalRobots = testRobots.length > 0 ? testRobots : robots;
+    const finalRobots: IsaacSimRobot[] = testRobots.length > 0 ? testRobots as IsaacSimRobot[] : robots;
     if (finalRobots.length > 0) {
       setRecommendedRobots(finalRobots);
       setSelectedRobot(finalRobots[0]);
@@ -127,8 +127,8 @@ function ConfigureContent() {
       const config = generateIsaacSimConfiguration(finalRobots, storedInput);
       setIsaacSimConfig(config);
       
-      console.log('🤖 Isaac Sim robot recommendations:', finalRobots.map(r => r.name));
-      console.log('🏭 Isaac Sim configuration:', config);
+      console.log('Isaac Sim robot recommendations:', finalRobots.map(r => r.name));
+      console.log('Isaac Sim configuration:', config);
     }
   }, [searchParams, router]);
 
@@ -205,8 +205,9 @@ function ConfigureContent() {
         }
       });
 
-      if (result.data?.forgeSepulka?.sepulka) {
-        const sepulkaId = result.data.forgeSepulka.sepulka.id;
+      const forgeData = result.data as { forgeSepulka?: { sepulka?: { id?: string } } } | undefined;
+      if (forgeData?.forgeSepulka?.sepulka?.id) {
+        const sepulkaId = forgeData.forgeSepulka.sepulka.id;
         
         // Store the sepulka ID for the deployment flow
         localStorage.setItem('pendingDeployment', JSON.stringify({
@@ -354,7 +355,7 @@ function ConfigureContent() {
                         try {
                           const sessionId = localStorage.getItem('isaac_sim_session_id')
                           if (!sessionId) {
-                            console.log('🤖 No Isaac Sim session ID available for robot change')
+                            console.log('No Isaac Sim session ID available for robot change')
                             return
                           }
                           
@@ -369,12 +370,12 @@ function ConfigureContent() {
                           
                           const result = await response.json()
                           if (result.success) {
-                            console.log('🎉 Robot changed in Isaac Sim successfully:', result.robot_name)
+                            console.log('Robot changed in Isaac Sim successfully:', result.robot_name)
                           } else {
-                            console.error('❌ Failed to change robot in Isaac Sim:', result.error)
+                            console.error('Failed to change robot in Isaac Sim:', result.error)
                           }
                         } catch (error) {
-                          console.error('❌ Robot change API call failed:', error)
+                          console.error('Robot change API call failed:', error)
                         }
                       }
                       
@@ -382,7 +383,7 @@ function ConfigureContent() {
                     }}
                   >
                     <div className="flex items-start space-x-3">
-                      <div className="text-2xl">🤖</div>
+                      <div className="text-2xl"></div>
                       <div className="flex-1">
                         <h3 className="font-semibold text-gray-900">{robot.name}</h3>
                         <p className="text-sm text-gray-600 mb-2">{robot.manufacturer} • {robot.category}</p>
@@ -417,7 +418,7 @@ function ConfigureContent() {
                         
                         {selectedRobot?.id === robot.id && (
                           <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded">
-                            <div className="text-sm font-medium text-green-800">✅ Selected for Isaac Sim</div>
+                            <div className="text-sm font-medium text-green-800">Selected for Isaac Sim</div>
                             <div className="text-xs text-green-600 mt-1">
                               Will be loaded: {robot.isaac_sim_path}
                             </div>
@@ -443,7 +444,6 @@ function ConfigureContent() {
                         </>
                       ) : (
                         <>
-                          <span>🚀</span>
                           <span>Deploy to Fleet</span>
                         </>
                       )}
@@ -456,7 +456,6 @@ function ConfigureContent() {
               </div>
             ) : (
               <div className="text-center py-8 text-gray-500">
-                <div className="text-4xl mb-2">🤖</div>
                 <div>No robot recommendations found</div>
                 <div className="text-sm">Try analyzing requirements first</div>
               </div>
@@ -571,14 +570,14 @@ function ConfigureContent() {
               onClick={() => setShowSaveModal(true)}
               className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 flex items-center"
             >
-              🔥 Save Design
+              Save Design
             </button>
           ) : (
             <Link
               href="/auth/signin"
               className="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center"
             >
-              🔐 Sign In to Save
+              Sign In to Save
             </Link>
           )}
           {selectedRobot && (
@@ -601,7 +600,7 @@ function ConfigureContent() {
         isOpen={showSaveModal}
         onClose={() => setShowSaveModal(false)}
         onSaved={(sepulkaId) => {
-          console.log('✅ Design saved with ID:', sepulkaId);
+          console.log('Design saved with ID:', sepulkaId);
           // Navigate to My Designs page to show the new design
           router.push(`/designs?newDesign=${sepulkaId}`);
         }}

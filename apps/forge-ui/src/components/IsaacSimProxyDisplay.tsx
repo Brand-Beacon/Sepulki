@@ -42,7 +42,7 @@ export function IsaacSimProxyDisplay({
     const initializeSession = async () => {
       try {
         setConnectionState('connecting')
-        console.log('📹 Creating video streaming session...')
+        console.log('Creating video streaming session...')
 
         // Create session via proxy
         const response = await fetch(`${proxyUrl}/session/create`, {
@@ -67,8 +67,8 @@ export function IsaacSimProxyDisplay({
         setSessionId(data.sessionId)
         setEmbedUrl(`${proxyUrl}/stream/${data.sessionId}/embed`)
 
-        console.log('✅ Streaming session created:', data.sessionId)
-        console.log('📹 Embed URL:', data.httpStreamUrl)
+        console.log('Streaming session created:', data.sessionId)
+        console.log('Embed URL:', data.httpStreamUrl)
 
         setConnectionState('connected')
 
@@ -78,7 +78,7 @@ export function IsaacSimProxyDisplay({
         }
 
       } catch (err: any) {
-        console.error('❌ Failed to create streaming session:', err)
+        console.error('Failed to create streaming session:', err)
         setError(err.message)
         setConnectionState('error')
       }
@@ -104,13 +104,13 @@ export function IsaacSimProxyDisplay({
   // Connect WebSocket for real-time updates
   const connectWebSocket = (wsUrl: string) => {
     try {
-      console.log('🔌 Connecting to WebSocket:', wsUrl)
+      console.log('Connecting to WebSocket:', wsUrl)
 
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log('✅ WebSocket connected')
+        console.log('WebSocket connected')
       }
 
       ws.onmessage = (event) => {
@@ -118,24 +118,24 @@ export function IsaacSimProxyDisplay({
           const data = JSON.parse(event.data)
           
           if (data.type === 'status') {
-            console.log('📊 Status update:', data.message)
+            console.log('Status update:', data.message)
           } else if (data.type === 'error') {
-            console.error('❌ WebSocket error:', data.message)
+            console.error('WebSocket error:', data.message)
           }
         } catch (err) {
-          console.error('❌ Failed to parse WebSocket message:', err)
+          console.error('Failed to parse WebSocket message:', err)
         }
       }
 
       ws.onerror = (error) => {
-        console.error('❌ WebSocket error:', error)
+        console.error('WebSocket error:', error)
       }
 
       ws.onclose = () => {
-        console.log('🔌 WebSocket disconnected')
+        console.log('WebSocket disconnected')
       }
     } catch (err) {
-      console.error('❌ Failed to connect WebSocket:', err)
+      console.error('Failed to connect WebSocket:', err)
     }
   }
 
@@ -154,7 +154,7 @@ export function IsaacSimProxyDisplay({
         }
       }
     } catch (error) {
-      console.error('❌ Fullscreen toggle failed:', error)
+      console.error('Fullscreen toggle failed:', error)
     }
   }
 
@@ -286,7 +286,7 @@ export function IsaacSimProxyDisplay({
               </div>
               <div className="flex justify-between">
                 <span>Status:</span>
-                <span className="text-green-400 font-semibold">✅ Streaming</span>
+                <span className="text-green-400 font-semibold">Streaming</span>
               </div>
             </div>
 

@@ -33,24 +33,34 @@ export function RobotStreamDisplay({
   const { data: robotData, loading, error: queryError } = useQuery(ROBOT_QUERY, {
     variables: { id: robotId },
     skip: publicAccess, // Skip auth for public access
-    fetchPolicy: 'network-only',
-    onError: (err) => {
-      console.error('Failed to fetch robot data:', err)
+    fetchPolicy: 'network-only'
+  })
+
+  // Type guard for robotData
+  const robotDataTyped = (robotData && typeof robotData === 'object' && 'robot' in robotData) 
+    ? (robotData as { robot?: { id?: string; name?: string; batteryLevel?: number; streamUrl?: string } }) 
+    : undefined
+
+  // Handle query errors
+  useEffect(() => {
+    if (queryError) {
+      console.error('Failed to fetch robot data:', queryError)
       if (publicAccess) {
         // For public access, use mock stream URL
         setStreamUrl(`http://localhost:8889/stream/robot_${robotId}/embed`)
         setConnectionStatus('connecting')
       } else {
-        setError(err.message)
+        const errorMessage = queryError instanceof Error ? queryError.message : String(queryError)
+        setError(errorMessage)
         setConnectionStatus('error')
       }
     }
-  })
+  }, [queryError, publicAccess, robotId])
 
   // Create stream session
   useEffect(() => {
-    if (publicAccess || robotData?.robot) {
-      const robot = robotData?.robot || { id: robotId, name: 'Robot' }
+    if (publicAccess || robotDataTyped?.robot) {
+      const robot = robotDataTyped?.robot || { id: robotId, name: 'Robot', streamUrl: undefined }
       
       // Create session with video-stream-proxy
       const createSession = async () => {
@@ -155,7 +165,7 @@ export function RobotStreamDisplay({
         <div className="text-center text-white p-6">
           <Loader2 className="w-12 h-12 mx-auto mb-4 animate-spin" />
           <p className="text-lg mb-2">Connecting to robot stream...</p>
-          <p className="text-sm text-gray-400">Robot: {robotData?.robot?.name || `Robot ${robotId}`}</p>
+          <p className="text-sm text-gray-400">Robot: {robotDataTyped?.robot?.name || `Robot ${robotId}`}</p>
         </div>
         {/* Render placeholder iframe for test detection even while connecting */}
         <iframe
@@ -191,7 +201,7 @@ export function RobotStreamDisplay({
         />
       ) : (
         <IsaacSimProxyDisplay
-          robotName={robotData?.robot?.name || `Robot ${robotId}`}
+          robotName={robotDataTyped?.robot?.name || `Robot ${robotId}`}
           userId={publicAccess ? 'public' : 'user'}
           environment="warehouse"
           qualityProfile="engineering"
@@ -201,33 +211,46 @@ export function RobotStreamDisplay({
       )}
 
       {/* Status HUD */}
-      {showControls && (
-        <div className="absolute top-4 left-4 z-30 bg-black/80 backdrop-blur-sm rounded-lg p-3 border border-gray-700">
-          <div className="flex items-center space-x-2 mb-2">
-            <div className={`w-3 h-3 rounded-full ${
-              connectionStatus === 'connected' ? 'bg-green-500 animate-pulse' :
-              connectionStatus === 'connecting' ? 'bg-yellow-500' : 'bg-red-500'
-            }`}></div>
-            {connectionStatus === 'connected' ? (
-              <Wifi className="w-4 h-4 text-green-500" />
-            ) : (
-              <WifiOff className="w-4 h-4 text-red-500" />
-            )}
-            <span className="text-white text-sm font-medium">
-              {connectionStatus === 'connected' ? 'Live' :
-               connectionStatus === 'connecting' ? 'Connecting...' : 'Disconnected'}
-            </span>
-          </div>
-          <div className="text-xs text-gray-300">
-            {robotData?.robot?.name || `Robot ${robotId}`}
-          </div>
-          {robotData?.robot?.batteryLevel !== undefined && (
-            <div className="text-xs text-gray-300 mt-1">
-              Battery: {robotData.robot.batteryLevel.toFixed(0)}%
+      {showControls && (() => {
+        const getStatusColor = (status: 'connecting' | 'connected' | 'disconnected' | 'error'): string => {
+          switch (status) {
+            case 'connected': return 'bg-green-500 animate-pulse'
+            case 'connecting': return 'bg-yellow-500'
+            default: return 'bg-red-500'
+          }
+        }
+        const statusColor = getStatusColor(connectionStatus)
+        return (
+          <div className="absolute top-4 left-4 z-30 bg-black/80 backdrop-blur-sm rounded-lg p-3 border border-gray-700">
+            <div className="flex items-center space-x-2 mb-2">
+              <div className={`w-3 h-3 rounded-full ${statusColor}`}></div>
+              {connectionStatus === 'connected' ? (
+                <Wifi className="w-4 h-4 text-green-500" />
+              ) : (
+                <WifiOff className="w-4 h-4 text-red-500" />
+              )}
+              <span className="text-white text-sm font-medium">
+                {(() => {
+                  const status = connectionStatus as 'connecting' | 'connected' | 'disconnected' | 'error'
+                  switch (status) {
+                    case 'connected': return 'Live'
+                    case 'connecting': return 'Connecting...'
+                    default: return 'Disconnected'
+                  }
+                })()}
+              </span>
             </div>
-          )}
-        </div>
-      )}
+            <div className="text-xs text-gray-300">
+              {robotDataTyped?.robot?.name || `Robot ${robotId}`}
+            </div>
+            {robotDataTyped?.robot?.batteryLevel !== undefined && (
+              <div className="text-xs text-gray-300 mt-1">
+                Battery: {robotDataTyped.robot.batteryLevel.toFixed(0)}%
+              </div>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Controls */}
       <div className="absolute top-4 right-4 z-30 flex space-x-2">
