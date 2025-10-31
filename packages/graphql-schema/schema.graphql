@@ -83,6 +83,7 @@ type Robot {
   pose: RobotPose
   batteryLevel: Float
   healthScore: Float
+  streamUrl: String
 }
 
 type Task {
@@ -505,6 +506,54 @@ type DispatchPayload {
   errors: [Error!]
 }
 
+type UploadProgramPayload {
+  success: Boolean!
+  taskId: ID
+  fileId: ID
+  fileName: String
+  robots: [Robot!]
+  errors: [Error!]
+}
+
+type UploadRoutePayload {
+  success: Boolean!
+  taskId: ID
+  fileId: ID
+  fileName: String
+  route: Route
+  robots: [Robot!]
+  errors: [Error!]
+}
+
+type Route {
+  id: ID!
+  name: String!
+  waypoints: [Waypoint!]!
+  createdAt: DateTime!
+}
+
+type Waypoint {
+  id: ID!
+  sequence: Int!
+  position: Coordinates!
+  orientation: Orientation
+  actions: [Action!]
+}
+
+type Orientation {
+  x: Float!
+  y: Float!
+  z: Float!
+  w: Float!
+}
+
+type Action {
+  id: ID!
+  type: String!
+  parameters: JSON
+  duration: Int
+}
+
 # Queries
 type Query {
   # Sepulkas
@@ -555,6 +604,8 @@ type Mutation {
   # Task Management
   dispatchTask(fleetId: ID!, input: TaskInput!): DispatchPayload!
   cancelTask(taskId: ID!): Task
+  uploadProgram(robotId: ID, fleetId: ID, file: Upload!): UploadProgramPayload!
+  uploadRoute(robotId: ID, fleetId: ID, file: Upload!): UploadRoutePayload!
   
   # Fleet Management
   updateRobotStatus(robotId: ID!, status: RobotStatus!): Robot

@@ -187,14 +187,7 @@ export const fleetResolvers = {
   },
 
   Subscription: {
-    robotStatus: {
-      subscribe: async (parent: any, { robotId }: any, context: Context) => {
-        await requirePermission(context, Permission.VIEW_ROBOTS);
-        
-        // TODO: Implement subscription with Redis pub/sub
-        throw new ServiceError('subscriptions', 'Real-time subscriptions not yet implemented');
-      }
-    }
+    // robotStatus subscription moved to subscriptions.ts
   },
 
   Fleet: {
@@ -252,6 +245,22 @@ export const fleetResolvers = {
     async pose(parent: any, args: any, context: Context) {
       // TODO: Get latest pose from telemetry service
       return parent.last_pose || null;
+    },
+
+    async streamUrl(parent: any, args: any, context: Context) {
+      // Generate stream URL for robot
+      // In production, this would connect to the robot's actual camera stream
+      // For now, we'll use the video-stream-proxy service
+      const proxyUrl = process.env.VIDEO_PROXY_URL || 'http://localhost:8889';
+      const robotId = parent.id;
+      const robotName = parent.name || 'robot';
+      
+      // Create a session ID for this robot's stream
+      // In production, this would be managed per-robot and persist
+      const sessionId = `robot_${robotId}_${Date.now()}`;
+      
+      // Return the embed URL for the stream
+      return `${proxyUrl}/stream/${sessionId}/embed`;
     }
   }
 };

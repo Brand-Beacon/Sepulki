@@ -12,9 +12,16 @@ import numpy as np
 import sys
 import os
 
-# Add Isaac Sim to Python path - use the correct host installation path
-isaac_sim_base = "/home/shadeform/isaac-sim/isaac-sim-2023.1.1"
-sys.path.insert(0, isaac_sim_base)
+# Add Isaac Sim to Python path - use environment variable or default path
+isaac_sim_base = os.getenv("ISAAC_SIM_BASE", "/home/shadeform/isaac-sim/isaac-sim-2023.1.1")
+if os.path.exists(isaac_sim_base):
+    sys.path.insert(0, isaac_sim_base)
+else:
+    # Try Docker container path
+    docker_path = "/isaac-sim"
+    if os.path.exists(docker_path):
+        isaac_sim_base = docker_path
+        sys.path.insert(0, isaac_sim_base)
 
 # Also add the Isaac Sim extensions and modules from the correct location
 sys.path.insert(0, os.path.join(isaac_sim_base, "kit", "exts"))
@@ -52,10 +59,16 @@ logger = structlog.get_logger(__name__)
 class IsaacSimRealRenderer:
     """Real Isaac Sim renderer with photorealistic 3D simulation."""
     
-    def __init__(self, width: int = 1920, height: int = 1080):
+    # Class variable to track if SimulationApp has been initialized
+    _app_initialized = False
+    
+    def __init__(self, width: int = 1920, height: int = 1080, max_fps: int = 30):
         self.width = width
         self.height = height
+        self.max_fps = max_fps
         self.frame_count = 0
+        self._last_frame_time = 0.0
+        self._min_frame_interval = 1.0 / max_fps if max_fps > 0 else 0.0
         
         # Isaac Sim components
         self.app = None
@@ -66,9 +79,9 @@ class IsaacSimRealRenderer:
         
         # Current state
         self.camera_state = {
-            'position': [4.0, 4.0, 4.0],
-            'target': [0.0, 0.0, 0.0],
-            'fov': 50.0
+            'position': [2.0, 2.0, 1.5],  # Default camera position looking at robot
+            'target': [0.0, 0.0, 0.3],    # Default target (robot base height)
+            'fov': 60.0
         }
         
         self.joint_states = {
@@ -77,56 +90,102 @@ class IsaacSimRealRenderer:
         }
         
         self.robot_config = {
-            'name': 'Default Robot',
-            'isaac_sim_path': None,
+            'name': 'TurtleBot3',
+            'isaac_sim_path': '/Isaac/Robots/TurtleBot3/turtlebot3.usd',
             'specifications': {}
         }
+        
+        self.robot_loaded = False
         
         # Try to initialize Isaac Sim
         try:
             self._initialize_isaac_sim()
         except Exception as e:
             logger.warning(f"Isaac Sim initialization failed, falling back to mock rendering: {e}")
+            import traceback
+            logger.error(f"Initialization traceback: {traceback.format_exc()}")
             self.scene_initialized = False
     
     def _initialize_isaac_sim(self):
         """Initialize Isaac Sim application and world."""
+        if not ISAAC_SIM_AVAILABLE:
+            logger.warning("Isaac Sim modules not available")
+            self.scene_initialized = False
+            return
+            
+        # Prevent multiple SimulationApp instances
+        if IsaacSimRealRenderer._app_initialized:
+            logger.warning("SimulationApp already initialized, reusing existing instance")
+            return
+            
         try:
-            # Configure Isaac Sim for headless rendering
+            # Configure Isaac Sim for headless rendering with explicit rendering enabled
             config = {
                 "headless": True,
                 "width": self.width,
                 "height": self.height,
                 "renderer": "RayTracedLighting",  # Photorealistic rendering
+                "livesync": False,  # Disable live sync for headless
             }
             
             self.app = SimulationApp(config)
+            IsaacSimRealRenderer._app_initialized = True
             logger.info("🎬 Real Isaac Sim application initialized", config=config)
             
             # Enable required extensions
             enable_extension("omni.isaac.core")
             enable_extension("omni.isaac.sensor")
+            logger.info("✅ Isaac Sim extensions enabled")
             
             # Create new stage
             create_new_stage()
+            logger.info("✅ New USD stage created")
             
-            # Initialize world
-            self.world = World()
+            # Initialize world with physics
+            self.world = World(stage_units_in_meters=1.0)
             logger.info("🌍 Real Isaac Sim world created")
             
-            # Setup scene
+            # Setup scene (ground, lighting)
             self._setup_scene()
+            
+            # Load default robot (TurtleBot3) after scene setup
+            self._load_default_robot()
+            
+            # Setup camera after robot is loaded
+            self._setup_default_camera()
+            
+            # Run initial simulation steps to stabilize
+            for _ in range(10):
+                self.world.step(render=False)
+                self.app.update()
+            logger.info("✅ Initial simulation steps completed")
             
             self.scene_initialized = True
             logger.info("✅ Real Isaac Sim scene initialized successfully")
             
         except Exception as e:
             logger.error("❌ Failed to initialize real Isaac Sim", error=str(e))
+            import traceback
+            logger.error(f"Initialization traceback: {traceback.format_exc()}")
             self.scene_initialized = False
+            if self.app:
+                try:
+                    self.app.close()
+                except:
+                    pass
+                self.app = None
+            IsaacSimRealRenderer._app_initialized = False
     
     def _setup_scene(self):
         """Setup the Isaac Sim scene with lighting, environment, and materials."""
         try:
+            # Ensure stage exists
+            from pxr import Usd, UsdGeom
+            stage = Usd.Stage.GetCurrent()
+            if not stage:
+                logger.error("❌ No USD stage available for scene setup")
+                return
+            
             # Setup environment lighting
             self._setup_lighting()
             
@@ -137,11 +196,24 @@ class IsaacSimRealRenderer:
             
         except Exception as e:
             logger.error("❌ Failed to setup Isaac Sim scene", error=str(e))
+            import traceback
+            logger.error(f"Scene setup traceback: {traceback.format_exc()}")
     
     def _setup_lighting(self):
         """Setup advanced lighting for photorealistic rendering."""
         if not CREATE_PRIM_AVAILABLE:
             logger.warning("⚠️ Skipping lighting setup - create_prim not available")
+            # Try alternative method using pxr
+            try:
+                from pxr import UsdLux
+                stage = Usd.Stage.GetCurrent()
+                if stage:
+                    dome_light = UsdLux.DomeLight.Define(stage, "/World/DomeLight")
+                    dome_light.GetIntensityAttr().Set(1000.0)
+                    dome_light.GetColorAttr().Set((1.0, 1.0, 1.0))
+                    logger.info("💡 Real Isaac Sim lighting setup completed (pxr method)")
+            except Exception as e2:
+                logger.error("❌ Failed to setup lighting with pxr method", error=str(e2))
             return
 
         try:
@@ -153,19 +225,32 @@ class IsaacSimRealRenderer:
                 orientation=[0, 0, 0, 1]
             )
 
-            # Configure dome light
-            dome_light.GetAttribute("intensity").Set(1.0)
+            # Configure dome light with higher intensity for headless rendering
+            dome_light.GetAttribute("intensity").Set(1000.0)
             dome_light.GetAttribute("color").Set((1.0, 1.0, 1.0))
 
             logger.info("💡 Real Isaac Sim lighting setup completed")
 
         except Exception as e:
             logger.error("❌ Failed to setup lighting", error=str(e))
+            import traceback
+            logger.error(f"Lighting setup traceback: {traceback.format_exc()}")
     
     def _setup_ground(self):
         """Setup ground plane with realistic materials."""
         if not CREATE_PRIM_AVAILABLE:
             logger.warning("⚠️ Skipping ground setup - create_prim not available")
+            # Try alternative method using pxr
+            try:
+                from pxr import UsdGeom
+                stage = Usd.Stage.GetCurrent()
+                if stage:
+                    ground = UsdGeom.Xform.Define(stage, "/World/Ground")
+                    plane = UsdGeom.Plane.Define(stage, "/World/Ground/Plane")
+                    plane.GetSizeAttr().Set(10.0)
+                    logger.info("🏞️ Real Isaac Sim ground plane setup completed (pxr method)")
+            except Exception as e2:
+                logger.error("❌ Failed to setup ground with pxr method", error=str(e2))
             return
 
         try:
@@ -189,6 +274,96 @@ class IsaacSimRealRenderer:
 
         except Exception as e:
             logger.error("❌ Failed to setup ground", error=str(e))
+            import traceback
+            logger.error(f"Ground setup traceback: {traceback.format_exc()}")
+    
+    def _load_default_robot(self):
+        """Load default robot (TurtleBot3) during initialization."""
+        if not self.scene_initialized or not self.world:
+            logger.warning("Cannot load default robot - scene not initialized")
+            return False
+        
+        try:
+            robot_path = self.robot_config.get('isaac_sim_path')
+            robot_name = self.robot_config.get('name', 'TurtleBot3')
+            
+            if not robot_path:
+                logger.warning("No robot path configured for default robot")
+                return False
+            
+            # Try to load robot
+            try:
+                self.robot = self.world.scene.add(
+                    Robot(
+                        prim_path=f"/World/{robot_name}",
+                        name=robot_name,
+                        usd_path=robot_path
+                    )
+                )
+                self.robot_loaded = True
+                logger.info("🤖 Default robot loaded successfully", 
+                           robot_name=robot_name, 
+                           robot_path=robot_path)
+                
+                # Step world a few times to let robot settle
+                for _ in range(5):
+                    self.world.step(render=False)
+                    self.app.update()
+                    
+                return True
+            except Exception as load_error:
+                logger.warning(f"Failed to load robot from {robot_path}: {load_error}")
+                logger.info("Continuing without robot - camera will show empty scene")
+                return False
+                
+        except Exception as e:
+            logger.error("❌ Failed to load default robot", error=str(e))
+            import traceback
+            logger.error(f"Robot loading traceback: {traceback.format_exc()}")
+            return False
+    
+    def _setup_default_camera(self):
+        """Setup default camera after robot is loaded."""
+        if not self.scene_initialized:
+            logger.warning("Cannot setup default camera - scene not initialized")
+            return False
+        
+        try:
+            # Get default camera position/target/FOV from state
+            position = self.camera_state['position']
+            target = self.camera_state['target']
+            fov = self.camera_state['fov']
+            
+            # Create camera
+            self.camera = Camera(
+                prim_path="/World/Camera",
+                position=position,
+                look_at=target,
+                fov=fov,
+                resolution=(self.width, self.height)
+            )
+            
+            # Configure camera settings
+            self.camera.set_resolution((self.width, self.height))
+            self.camera.set_fov(fov)
+            
+            logger.info("📹 Default camera setup completed", 
+                       position=position, 
+                       target=target, 
+                       fov=fov)
+            
+            # Step world to ensure camera is ready
+            for _ in range(3):
+                self.world.step(render=False)
+                self.app.update()
+            
+            return True
+            
+        except Exception as e:
+            logger.error("❌ Failed to setup default camera", error=str(e))
+            import traceback
+            logger.error(f"Camera setup traceback: {traceback.format_exc()}")
+            return False
     
     async def load_robot(self, robot_config: Dict[str, Any]):
         """Load actual Isaac Sim robot model."""
@@ -297,53 +472,123 @@ class IsaacSimRealRenderer:
     async def render_frame(self) -> np.ndarray:
         """Render a photorealistic frame from Isaac Sim."""
         if not self.scene_initialized or not self.camera:
-            logger.warning("Isaac Sim not ready - returning black frame")
+            logger.warning("Isaac Sim not ready - returning black frame",
+                          scene_initialized=self.scene_initialized,
+                          camera_exists=self.camera is not None)
             return np.zeros((self.height, self.width, 3), dtype=np.uint8)
         
         try:
-            # Step simulation
-            self.world.step_async()
+            # Frame rate throttling - ensure we don't exceed max_fps
+            import time
+            current_time = time.time()
+            time_since_last_frame = current_time - self._last_frame_time
+            
+            if self._min_frame_interval > 0 and time_since_last_frame < self._min_frame_interval:
+                # Sleep to maintain frame rate (only if throttling enabled)
+                await asyncio.sleep(self._min_frame_interval - time_since_last_frame)
+                current_time = time.time()
+            
+            self._last_frame_time = current_time
+            
+            # Step simulation synchronously and update app for rendering
+            self.world.step(render=True)
+            self.app.update()
             
             # Capture frame from camera
             frame_data = self.camera.get_rgba()
             
-            if frame_data is not None:
+            if frame_data is not None and frame_data.size > 0:
+                # Validate frame data - check if it's not all black
+                frame_mean = np.mean(frame_data)
+                frame_max = np.max(frame_data)
+                
                 # Convert to BGR format for OpenCV compatibility
-                frame_bgr = frame_data[:, :, :3][:, :, ::-1]  # RGBA to BGR
+                # Frame data is RGBA float [0-1], convert to BGR uint8 [0-255]
+                frame_rgb = frame_data[:, :, :3]  # Remove alpha channel
+                frame_bgr = frame_rgb[:, :, ::-1]  # RGB to BGR
                 frame_bgr = (frame_bgr * 255).astype(np.uint8)
                 
                 self.frame_count += 1
                 
-                # Log every 60 frames (once per second)
+                # Log every 60 frames (once per second at 60 FPS)
                 if self.frame_count % 60 == 0:
                     logger.info("🎬 Real Isaac Sim frame rendered", 
                                frame_count=self.frame_count,
-                               robot_name=self.robot_config.get('name'))
+                               robot_name=self.robot_config.get('name'),
+                               frame_mean=frame_mean,
+                               frame_max=frame_max,
+                               frame_shape=frame_bgr.shape)
                 
                 return frame_bgr
             else:
-                logger.warning("No frame data from real Isaac Sim camera")
+                logger.warning("No frame data from real Isaac Sim camera or empty frame")
                 return np.zeros((self.height, self.width, 3), dtype=np.uint8)
                 
         except Exception as e:
             logger.error("❌ Failed to render real Isaac Sim frame", error=str(e))
+            import traceback
+            logger.error(f"Frame rendering traceback: {traceback.format_exc()}")
             return np.zeros((self.height, self.width, 3), dtype=np.uint8)
     
     def update_camera(self, position: list, target: list, fov: float):
         """Update camera parameters."""
-        self.camera_state.update({
-            'position': position,
-            'target': target,
-            'fov': fov
-        })
+        if not self.scene_initialized:
+            logger.warning("Cannot update camera - scene not initialized")
+            return False
         
-        # Update camera if it exists
-        if self.camera:
-            self.camera.set_position(position)
-            self.camera.set_look_at(target)
-            self.camera.set_fov(fov)
-        
-        logger.debug("📹 Real camera updated", position=position, target=target, fov=fov)
+        try:
+            # Update camera state
+            self.camera_state.update({
+                'position': position,
+                'target': target,
+                'fov': fov
+            })
+            
+            # Update camera if it exists
+            if self.camera:
+                try:
+                    self.camera.set_position(position)
+                    self.camera.set_look_at(target)
+                    self.camera.set_fov(fov)
+                    logger.info("📹 Real camera updated", position=position, target=target, fov=fov)
+                    return True
+                except Exception as e:
+                    logger.error("Failed to update camera parameters", error=str(e))
+                    # Try recreating camera if update fails
+                    try:
+                        self.camera = Camera(
+                            prim_path="/World/Camera",
+                            position=position,
+                            look_at=target,
+                            fov=fov,
+                            resolution=(self.width, self.height)
+                        )
+                        logger.info("📹 Camera recreated with new parameters")
+                        return True
+                    except Exception as e2:
+                        logger.error("Failed to recreate camera", error=str(e2))
+                        return False
+            else:
+                # Create camera if it doesn't exist
+                try:
+                    self.camera = Camera(
+                        prim_path="/World/Camera",
+                        position=position,
+                        look_at=target,
+                        fov=fov,
+                        resolution=(self.width, self.height)
+                    )
+                    logger.info("📹 Camera created with new parameters")
+                    return True
+                except Exception as e:
+                    logger.error("Failed to create camera", error=str(e))
+                    return False
+                    
+        except Exception as e:
+            logger.error("❌ Failed to update camera", error=str(e))
+            import traceback
+            logger.error(f"Camera update traceback: {traceback.format_exc()}")
+            return False
     
     def update_robot_config(self, robot_config: Dict[str, Any]):
         """Update robot configuration."""

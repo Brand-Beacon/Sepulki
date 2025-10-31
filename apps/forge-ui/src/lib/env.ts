@@ -11,6 +11,11 @@ export interface EnvironmentConfig {
   graphqlEndpoint: string
   anvilSimEndpoint: string
   anvilSimWebSocketEndpoint?: string
+  videoProxyUrl: string
+  
+  // Isaac Sim Configuration
+  isaacSimIP: string
+  isaacSimPort: string
 
   // Authentication
   useRealAuth: boolean
@@ -65,6 +70,16 @@ function createEnvironmentConfig(): EnvironmentConfig {
   const anvilSimWebSocketEndpoint = process.env.NEXT_PUBLIC_ANVIL_SIM_WS_ENDPOINT ||
     process.env.ANVIL_SIM_WS_ENDPOINT
 
+  // Video proxy for Isaac Sim streaming
+  const videoProxyUrl = process.env.NEXT_PUBLIC_VIDEO_PROXY_URL ||
+    'http://localhost:8889'
+
+  // Isaac Sim AWS EC2 configuration
+  const isaacSimIP = process.env.NEXT_PUBLIC_ISAAC_SIM_IP ||
+    '18.234.83.45'
+  const isaacSimPort = process.env.NEXT_PUBLIC_ISAAC_SIM_PORT ||
+    '8211'
+
   // Determine auth providers available
   const authProviders: string[] = []
   if (process.env.GITHUB_CLIENT_ID) authProviders.push('github')
@@ -83,6 +98,11 @@ function createEnvironmentConfig(): EnvironmentConfig {
     graphqlEndpoint,
     anvilSimEndpoint,
     anvilSimWebSocketEndpoint,
+    videoProxyUrl,
+    
+    // Isaac Sim Configuration
+    isaacSimIP,
+    isaacSimPort,
     
     // Authentication
     useRealAuth,
@@ -114,6 +134,8 @@ if (env.isDevelopment) {
     graphql: env.graphqlEndpoint,
     anvilSim: env.anvilSimEndpoint,
     anvilSimWS: env.anvilSimWebSocketEndpoint,
+    videoProxy: env.videoProxyUrl,
+    isaacSim: `${env.isaacSimIP}:${env.isaacSimPort}`,
     mockAuth: shouldUseMockAuth(),
   })
 }

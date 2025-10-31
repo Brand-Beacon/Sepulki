@@ -24,7 +24,7 @@ except ImportError:
     class VideoStreamTrack:
         def __init__(self): pass
 
-from video_frame_generator import get_video_generator
+# from video_frame_generator import get_video_generator  # Removed - using isaac_sim_real_renderer
 
 logger = structlog.get_logger(__name__)
 

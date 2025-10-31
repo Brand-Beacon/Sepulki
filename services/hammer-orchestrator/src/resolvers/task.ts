@@ -259,14 +259,7 @@ export const taskResolvers = {
   },
 
   Subscription: {
-    taskUpdates: {
-      subscribe: async (parent: any, { fleetId }: any, context: Context) => {
-        await requirePermission(context, Permission.VIEW_TASKS);
-        
-        // TODO: Implement subscription with Redis pub/sub
-        throw new ServiceError('subscriptions', 'Real-time subscriptions not yet implemented');
-      }
-    }
+    // taskUpdates subscription moved to subscriptions.ts
   },
 
   Task: {

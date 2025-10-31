@@ -60,7 +60,11 @@ export function IsaacSimScene3D({
   // Check Isaac Sim service availability
   const checkServiceAvailability = useCallback(async (): Promise<boolean> => {
     try {
-      const response = await fetch('http://localhost:8002/health', {
+      // Use environment-aware endpoint
+      const { env } = await import('@/lib/env')
+      const anvilSimUrl = env.anvilSimEndpoint || 'http://localhost:8002'
+      
+      const response = await fetch(`${anvilSimUrl}/health`, {
         method: 'GET',
         timeout: 5000
       } as any)
@@ -80,7 +84,11 @@ export function IsaacSimScene3D({
     try {
       setConnectionState('connecting')
       
-      const response = await fetch('http://localhost:8002/create_scene', {
+      // Use environment-aware endpoint
+      const { env } = await import('@/lib/env')
+      const anvilSimUrl = env.anvilSimEndpoint || 'http://localhost:8002'
+      
+      const response = await fetch(`${anvilSimUrl}/create_scene`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

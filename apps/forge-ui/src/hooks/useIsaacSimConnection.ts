@@ -21,7 +21,11 @@ export function useIsaacSimConnection() {
 
   const checkServiceHealth = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:8002/health', {
+      // Use environment-aware endpoint
+      const { env } = await import('@/lib/env')
+      const anvilSimUrl = env.anvilSimEndpoint || 'http://localhost:8002'
+      
+      const response = await fetch(`${anvilSimUrl}/health`, {
         method: 'GET',
         timeout: 3000
       } as any)

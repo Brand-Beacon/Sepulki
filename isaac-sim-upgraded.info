@@ -1,0 +1,22 @@
+Isaac Sim AWS Deployment - Upgraded
+====================================
+Instance ID: i-04290c33ffba461c7
+Public IP: 18.232.113.137
+Instance Type: g5.2xlarge (32GB RAM, NVIDIA A10G)
+Storage: 250GB gp3
+
+Connection:
+  SSH: ssh -i sepulki-isaac-sim.pem ubuntu@18.232.113.137
+
+Ports:
+  8211  - Isaac Sim HTTP
+  8765  - Screenshot Streamer
+  8889  - WebRTC Client
+  48010 - Native Livestream
+
+Next Steps:
+  1. Wait for instance to fully boot (2-3 minutes)
+  2. Run: ./infrastructure/aws/install-isaac-sim-latest.sh 18.232.113.137
+  3. Test: curl http://18.232.113.137:8765/health
+
+Cost: ~.21/hour

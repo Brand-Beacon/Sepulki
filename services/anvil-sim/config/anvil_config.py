@@ -23,6 +23,19 @@ ISAAC_SIM_CONFIG: Dict[str, Any] = {
     "experience": os.getenv("ANVIL_EXPERIENCE", ""),  # Custom Isaac Sim experience file
     "renderer": os.getenv("ANVIL_RENDERER", "RayTracedLighting"),
     "anti_aliasing": int(os.getenv("ANVIL_ANTI_ALIASING", "3")),
+    # Isaac Sim base path (supports environment variable)
+    "isaac_sim_base": os.getenv("ISAAC_SIM_BASE", "/home/shadeform/isaac-sim/isaac-sim-2023.1.1"),
+    # Default robot configuration
+    "default_robot": {
+        "name": "TurtleBot3",
+        "isaac_sim_path": "/Isaac/Robots/TurtleBot3/turtlebot3.usd"
+    },
+    # Default camera configuration
+    "default_camera": {
+        "position": [2.0, 2.0, 1.5],
+        "target": [0.0, 0.0, 0.3],
+        "fov": 60.0
+    }
 }
 
 # Simulation Environments

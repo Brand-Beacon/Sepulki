@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Isaac Sim WebSocket Stream</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #canvas {
+            max-width: 100%;
+            max-height: 100%;
+            display: block;
+            background: #1a1a1a;
+        }
+
+        #status {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #0f0;
+            padding: 15px 20px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            z-index: 1000;
+            border: 1px solid #0f0;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px 25px;
+            border-radius: 8px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        button {
+            background: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #1976D2;
+        }
+
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+
+        .status-dot {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+
+        .status-connected { background: #0f0; }
+        .status-connecting { background: #ff0; animation: pulse 1s infinite; }
+        .status-error { background: #f00; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        #stats {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 12px;
+            min-width: 200px;
+            z-index: 1000;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 5px 0;
+        }
+
+        .stat-label {
+            color: #aaa;
+        }
+
+        .stat-value {
+            color: #0f0;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="canvas"></canvas>
+        
+        <div id="status">
+            <span class="status-dot status-connecting"></span>
+            <span id="statusText">Connecting to Isaac Sim...</span>
+        </div>
+
+        <div id="stats">
+            <div class="stat-row">
+                <span class="stat-label">FPS:</span>
+                <span class="stat-value" id="fps">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Frames:</span>
+                <span class="stat-value" id="frameCount">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Data:</span>
+                <span class="stat-value" id="dataSize">0 KB</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Latency:</span>
+                <span class="stat-value" id="latency">0 ms</span>
+            </div>
+        </div>
+
+        <div id="controls">
+            <button id="connectBtn" onclick="connect()">Connect</button>
+            <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+            <button onclick="toggleFullscreen()">Fullscreen</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const statusDot = document.querySelector('.status-dot');
+        const statusText = document.getElementById('statusText');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+
+        let ws = null;
+        let frameCount = 0;
+        let totalData = 0;
+        let lastFrameTime = Date.now();
+        let fps = 0;
+        let fpsCounter = 0;
+        let fpsInterval = null;
+
+        // Get server from URL parameter or use default
+        const urlParams = new URLSearchParams(window.location.search);
+        const serverIP = urlParams.get('server') || '54.82.56.4';
+        
+        // Try multiple possible WebSocket endpoints (port 48010 is livestream.native)
+        const possibleEndpoints = [
+            `ws://${serverIP}:48010`,
+            `ws://${serverIP}:8211/streaming/websocket`,
+            `ws://${serverIP}:8211`,
+            `ws://${serverIP}:8899`
+        ];
+        
+        let currentEndpointIndex = 0;
+        let wsUrl = possibleEndpoints[0];
+
+        function updateStatus(message, state) {
+            statusText.textContent = message;
+            statusDot.className = `status-dot status-${state}`;
+            console.log(`[${state}] ${message}`);
+        }
+
+        function updateStats() {
+            document.getElementById('frameCount').textContent = frameCount;
+            document.getElementById('dataSize').textContent = (totalData / 1024).toFixed(2) + ' KB';
+            document.getElementById('fps').textContent = fps;
+            
+            const now = Date.now();
+            const latency = now - lastFrameTime;
+            document.getElementById('latency').textContent = latency + ' ms';
+        }
+
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                console.log('Already connected');
+                return;
+            }
+
+            updateStatus('Connecting to Isaac Sim...', 'connecting');
+            console.log('Connecting to:', wsUrl);
+
+            // Try with livestream protocol for native streaming
+            const protocols = currentEndpointIndex === 0 ? ['livestream'] : undefined;
+            ws = protocols ? new WebSocket(wsUrl, protocols) : new WebSocket(wsUrl);
+            ws.binaryType = 'arraybuffer';
+
+            ws.onopen = () => {
+                console.log('✅ WebSocket connected');
+                updateStatus('Connected to Isaac Sim', 'connected');
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+
+                // Start FPS counter
+                fpsCounter = 0;
+                fpsInterval = setInterval(() => {
+                    fps = fpsCounter;
+                    fpsCounter = 0;
+                }, 1000);
+
+                // Request stream
+                ws.send(JSON.stringify({ 
+                    type: 'request_stream',
+                    format: 'jpeg',
+                    quality: 85
+                }));
+            };
+
+            ws.onmessage = (event) => {
+                try {
+                    if (typeof event.data === 'string') {
+                        // JSON message
+                        const message = JSON.parse(event.data);
+                        console.log('Received message:', message);
+                        
+                        if (message.type === 'error') {
+                            updateStatus('Error: ' + message.message, 'error');
+                        }
+                    } else {
+                        // Binary frame data
+                        handleFrame(event.data);
+                    }
+                } catch (error) {
+                    console.error('Error processing message:', error);
+                }
+            };
+
+            ws.onerror = (error) => {
+                console.error('❌ WebSocket error:', error);
+                console.error('   Tried endpoint:', wsUrl);
+                updateStatus(`Connection error (tried ${currentEndpointIndex + 1}/${possibleEndpoints.length})`, 'error');
+            };
+
+            ws.onclose = (event) => {
+                console.log('🔌 WebSocket closed:', event.code, event.reason);
+                
+                // Try next endpoint if available
+                currentEndpointIndex++;
+                if (currentEndpointIndex < possibleEndpoints.length) {
+                    wsUrl = possibleEndpoints[currentEndpointIndex];
+                    console.log(`🔄 Trying next endpoint: ${wsUrl}`);
+                    updateStatus(`Trying endpoint ${currentEndpointIndex + 1}...`, 'connecting');
+                    setTimeout(() => {
+                        connect();
+                    }, 2000);
+                    return;
+                }
+                
+                updateStatus('All endpoints failed', 'error');
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                
+                if (fpsInterval) {
+                    clearInterval(fpsInterval);
+                    fpsInterval = null;
+                }
+            };
+        }
+
+        function handleFrame(data) {
+            lastFrameTime = Date.now();
+            frameCount++;
+            fpsCounter++;
+            totalData += data.byteLength;
+
+            // Create blob from binary data
+            const blob = new Blob([data], { type: 'image/jpeg' });
+            const url = URL.createObjectURL(blob);
+
+            // Load and draw image
+            const img = new Image();
+            img.onload = () => {
+                // Resize canvas to match image
+                if (canvas.width !== img.width || canvas.height !== img.height) {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                }
+
+                // Draw image
+                ctx.drawImage(img, 0, 0);
+                URL.revokeObjectURL(url);
+                
+                updateStats();
+            };
+            img.src = url;
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // Auto-connect on load
+        window.addEventListener('load', () => {
+            setTimeout(connect, 500);
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            // Canvas will auto-resize based on CSS
+        });
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            disconnect();
+        });
+    </script>
+</body>
+</html>
+

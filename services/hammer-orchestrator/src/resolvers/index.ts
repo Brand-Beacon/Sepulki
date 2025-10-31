@@ -5,6 +5,8 @@ import { fleetResolvers } from './fleet';
 import { taskResolvers } from './task';
 import { authResolvers } from './auth';
 import { telemetryResolvers } from './telemetry';
+import { uploadResolvers } from './upload';
+import { subscriptionResolvers } from './subscriptions';
 import type { Resolvers } from './types';
 
 export const resolvers: Resolvers = {
@@ -30,6 +32,7 @@ export const resolvers: Resolvers = {
     ...fleetResolvers.Mutation,
     ...taskResolvers.Mutation,
     ...authResolvers.Mutation,
+    ...uploadResolvers.Mutation,
     
     // Stub implementations for missing mutations (TODO: Implement properly)
     recallFleet: async () => { throw new Error('recallFleet not yet implemented') },
@@ -42,11 +45,7 @@ export const resolvers: Resolvers = {
   // Subscriptions
   Subscription: {
     ...telemetryResolvers.Subscription,
-    
-    // Stub implementations for missing subscriptions (TODO: Implement properly)
-    taskUpdates: async () => { throw new Error('taskUpdates subscription not yet implemented') },
-    robotStatus: async () => { throw new Error('robotStatus subscription not yet implemented') },
-    policyBreaches: async () => { throw new Error('policyBreaches subscription not yet implemented') },
+    ...subscriptionResolvers,
   },
 
   // Type resolvers

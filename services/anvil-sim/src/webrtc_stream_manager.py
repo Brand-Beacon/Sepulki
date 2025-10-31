@@ -113,11 +113,28 @@ class IsaacSimVideoTrack(VideoStreamTrack):
             # Generate frame from real Isaac Sim renderer  
             if ISAAC_SIM_AVAILABLE:
                 frame_data = await self.isaac_sim_renderer.render_frame()
+                
+                # Validate frame - reject all-black frames
+                if frame_data is not None and frame_data.size > 0:
+                    frame_mean = np.mean(frame_data)
+                    frame_max = np.max(frame_data)
+                    
+                    # Check if frame is all black (mean < 0.01 and max < 0.1)
+                    if frame_mean < 0.01 or frame_max < 0.1:
+                        logger.warning("⚠️ Rejecting black frame", 
+                                     client_id=self.client_id,
+                                     frame_mean=frame_mean, 
+                                     frame_max=frame_max)
+                        # Return None to skip this frame - aiortc will handle retry
+                        return None
+                else:
+                    logger.warning("⚠️ Empty frame data from renderer", client_id=self.client_id)
+                    return None
             else:
                 # Fallback to black frame if Isaac Sim not available
                 frame_data = np.zeros((1080, 1920, 3), dtype=np.uint8)
             
-            logger.info("✅ Generated Isaac Sim frame", client_id=self.client_id, 
+            logger.debug("✅ Generated Isaac Sim frame", client_id=self.client_id, 
                        frame_shape=frame_data.shape, frame_dtype=frame_data.dtype)
             
             # Create av.VideoFrame with proper format
@@ -125,7 +142,7 @@ class IsaacSimVideoTrack(VideoStreamTrack):
             frame.pts = pts
             frame.time_base = time_base
             
-            logger.info("📹 Sending video frame to browser", 
+            logger.debug("📹 Sending video frame to browser", 
                        client_id=self.client_id, pts=pts, format=frame.format.name)
             
             return frame
@@ -136,17 +153,32 @@ class IsaacSimVideoTrack(VideoStreamTrack):
             import traceback
             logger.error("❌ Full traceback", traceback=traceback.format_exc())
             
-            # Return a bright test frame for debugging
+            # Retry frame generation once before falling back
             try:
-                pts, time_base = await self.next_timestamp()
-                test_frame = np.full((480, 640, 3), [0, 255, 255], dtype=np.uint8)  # Cyan frame
-                frame = av.VideoFrame.from_ndarray(test_frame, format="bgr24") 
-                frame.pts = pts
-                frame.time_base = time_base
-                logger.warning("⚠️ Returning fallback cyan frame", client_id=self.client_id)
-                return frame
-            except Exception as fallback_error:
-                logger.error("❌ Even fallback frame failed!", error=str(fallback_error))
+                logger.info("🔄 Retrying frame generation", client_id=self.client_id)
+                await asyncio.sleep(0.01)  # Brief pause before retry
+                
+                if ISAAC_SIM_AVAILABLE:
+                    frame_data = await self.isaac_sim_renderer.render_frame()
+                    if frame_data is not None and frame_data.size > 0:
+                        frame_mean = np.mean(frame_data)
+                        if frame_mean > 0.01:  # Valid frame
+                            pts, time_base = await self.next_timestamp()
+                            frame = av.VideoFrame.from_ndarray(frame_data, format="bgr24")
+                            frame.pts = pts
+                            frame.time_base = time_base
+                            logger.info("✅ Retry successful", client_id=self.client_id)
+                            return frame
+                
+                # If retry failed, return None to let aiortc handle it
+                logger.warning("⚠️ Retry failed, skipping frame", client_id=self.client_id)
+                return None
+                
+            except Exception as retry_error:
+                logger.error("❌ Retry also failed", 
+                           client_id=self.client_id, 
+                           error=str(retry_error))
+                # Return None - aiortc will handle frame skipping gracefully
                 return None
 
 @dataclass
@@ -200,9 +232,9 @@ class WebRTCStreamManager:
         self.websocket_server = None
         self.running = False
         
-        # Initialize video frame generator for WebSocket streaming
-        from video_frame_generator import IsaacSimVideoGenerator
-        self.video_frame_generator = IsaacSimVideoGenerator()
+        # Video frame generator removed - using isaac_sim_real_renderer directly
+        # from video_frame_generator import IsaacSimVideoGenerator
+        # self.video_frame_generator = IsaacSimVideoGenerator()
         
         # STUN/TURN servers for WebRTC connectivity  
         if WEBRTC_AVAILABLE:
@@ -668,8 +700,11 @@ class WebRTCStreamManager:
                 frame_count = 0
                 while client_id in self.clients:
                     try:
-                        # Generate frame from video frame generator (works regardless of Isaac Sim availability)
-                        frame_data = self.video_frame_generator.generate_frame()
+                        # Generate frame from Isaac Sim renderer (fallback to black if unavailable)
+                        if ISAAC_SIM_AVAILABLE and hasattr(self, 'isaac_sim_renderer') and self.isaac_sim_renderer:
+                            frame_data = await self.isaac_sim_renderer.render_frame()
+                        else:
+                            frame_data = np.zeros((1080, 1920, 3), dtype=np.uint8)
                         
                         # Encode frame as JPEG
                         _, buffer = cv2.imencode('.jpg', frame_data, [
@@ -800,10 +835,11 @@ class WebRTCStreamManager:
 
     def update_robot_config(self, robot_config: Dict[str, Any]):
         """Update the robot configuration for video generation."""
-        if hasattr(self, 'video_frame_generator') and self.video_frame_generator:
-            self.video_frame_generator.update_robot_config(robot_config)
-            logger.info("WebRTC video frame generator updated with robot config",
-                       robot_name=robot_config.get('name'))
+        # Robot config updates handled by isaac_sim_real_renderer directly
+        # if hasattr(self, 'video_frame_generator') and self.video_frame_generator:
+        #     self.video_frame_generator.update_robot_config(robot_config)
+        logger.info("Robot config update (handled by renderer)",
+                   robot_name=robot_config.get('name'))
 
     def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get streaming info for a specific session."""

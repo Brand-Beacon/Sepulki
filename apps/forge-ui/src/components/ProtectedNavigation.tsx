@@ -12,26 +12,27 @@ interface NavigationItem {
 
 const navigationItems: NavigationItem[] = [
   {
-    href: '/configure',
-    label: 'Forge Robot',
+    href: '/fleet',
+    label: 'Fleet',
+    requiresAuth: true, // Requires authentication to view fleet data
+    minRole: 'SMITH',
+  },
+  {
+    href: '/design/new',
+    label: 'Design',
     requiresAuth: false, // Basic robot configuration available to all
+  },
+  {
+    href: '/tasks',
+    label: 'Tasks',
+    requiresAuth: true, // Requires authentication to manage tasks
+    minRole: 'SMITH',
   },
   {
     href: '/designs',
     label: 'My Designs',
     requiresAuth: true, // Requires authentication to view saved designs
     minRole: 'SMITH',
-  },
-  {
-    href: '/dashboard',
-    label: 'Fleet Dashboard',
-    requiresAuth: true, // Requires authentication to view fleet data
-    minRole: 'SMITH',
-  },
-  {
-    href: '/pricing',
-    label: 'Pricing',
-    requiresAuth: false, // Public pricing information
   },
 ];
 

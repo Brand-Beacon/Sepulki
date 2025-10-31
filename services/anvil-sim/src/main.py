@@ -105,9 +105,9 @@ class AnvilSimService:
         self.active_sessions: Dict[str, Dict[str, Any]] = {}
         self.isaac_sim_renderer = get_isaac_sim_real_renderer()
         
-        # Initialize video frame generator for WebSocket streaming
-        from video_frame_generator import IsaacSimVideoGenerator
-        self.video_frame_generator = IsaacSimVideoGenerator()
+        # Video frame generator removed - using isaac_sim_real_renderer directly
+        # from video_frame_generator import IsaacSimVideoGenerator
+        # self.video_frame_generator = IsaacSimVideoGenerator()
         
     async def initialize_isaac_sim(self):
         """Initialize Isaac Sim simulation application using Real Isaac Sim Renderer."""
@@ -218,11 +218,11 @@ class AnvilSimService:
                 except Exception as e:
                     logger.error("Failed to load robot in Isaac Sim", error=str(e))
 
-            # Update video frame generator with robot configuration
+            # Robot configuration handled by isaac_sim_real_renderer
             if isaac_sim_robot:
                 try:
-                    self.video_frame_generator.update_robot_config(isaac_sim_robot)
-                    logger.info("Video frame generator updated with robot config",
+                    # self.video_frame_generator.update_robot_config(isaac_sim_robot)
+                    logger.info("Robot config provided (handled by renderer)",
                                session_id=session_id,
                                robot_name=isaac_sim_robot.get('name'))
                 except Exception as e:
@@ -308,10 +308,10 @@ class AnvilSimService:
                         'error': f'Failed to update visual simulation: {str(e)}'
                     }, status=500)
             
-            # Update video frame generator with new robot configuration
+            # Robot configuration handled by isaac_sim_real_renderer
             try:
-                self.video_frame_generator.update_robot_config(isaac_sim_robot)
-                logger.info("Video frame generator updated with new robot",
+                # self.video_frame_generator.update_robot_config(isaac_sim_robot)
+                logger.info("Robot config updated (handled by renderer)",
                            session_id=session_id,
                            robot_name=isaac_sim_robot.get('name'))
 
@@ -338,6 +338,170 @@ class AnvilSimService:
                 'error': str(e)
             }, status=500)
 
+    async def update_camera(self, request):
+        """Update camera position, target, and FOV."""
+        try:
+            data = await request.json()
+            
+            position = data.get('position')
+            target = data.get('target')
+            fov = data.get('fov')
+            
+            if not position or not target:
+                return web.json_response({
+                    'success': False,
+                    'error': 'position and target are required'
+                }, status=400)
+            
+            # Validate position and target are lists with 3 elements
+            if not isinstance(position, list) or len(position) != 3:
+                return web.json_response({
+                    'success': False,
+                    'error': 'position must be a list of 3 numbers [x, y, z]'
+                }, status=400)
+            
+            if not isinstance(target, list) or len(target) != 3:
+                return web.json_response({
+                    'success': False,
+                    'error': 'target must be a list of 3 numbers [x, y, z]'
+                }, status=400)
+            
+            # Default FOV if not provided
+            if fov is None:
+                fov = 60.0
+            
+            # Validate FOV
+            if not isinstance(fov, (int, float)) or fov <= 0 or fov > 180:
+                return web.json_response({
+                    'success': False,
+                    'error': 'fov must be a number between 0 and 180'
+                }, status=400)
+            
+            # Update camera in Isaac Sim renderer
+            if ISAAC_SIM_AVAILABLE and self.isaac_sim_renderer:
+                try:
+                    self.isaac_sim_renderer.update_camera(position, target, fov)
+                    logger.info("Camera updated successfully",
+                               position=position, target=target, fov=fov)
+                except Exception as e:
+                    logger.error("Failed to update camera in Isaac Sim", error=str(e))
+                    return web.json_response({
+                        'success': False,
+                        'error': f'Failed to update camera: {str(e)}'
+                    }, status=500)
+            
+            return web.json_response({
+                'success': True,
+                'position': position,
+                'target': target,
+                'fov': fov,
+                'message': 'Camera updated successfully'
+            })
+            
+        except Exception as e:
+            logger.error("Failed to update camera", error=str(e))
+            return web.json_response({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+
+    async def debug_frame_stats(self, request):
+        """Debug endpoint to return current frame statistics."""
+        try:
+            if not ISAAC_SIM_AVAILABLE or not self.isaac_sim_renderer:
+                return web.json_response({
+                    'error': 'Isaac Sim not available',
+                    'isaac_sim_available': False
+                }, status=503)
+            
+            renderer = self.isaac_sim_renderer
+            
+            # Get current frame stats
+            stats = {
+                'scene_initialized': renderer.scene_initialized,
+                'robot_loaded': renderer.robot_loaded,
+                'camera_exists': renderer.camera is not None,
+                'frame_count': renderer.frame_count,
+                'camera_state': renderer.camera_state,
+                'robot_config': {
+                    'name': renderer.robot_config.get('name'),
+                    'has_path': renderer.robot_config.get('isaac_sim_path') is not None
+                }
+            }
+            
+            # Try to capture a test frame to get statistics
+            if renderer.scene_initialized and renderer.camera:
+                try:
+                    import numpy as np
+                    test_frame = await renderer.render_frame()
+                    if test_frame is not None and test_frame.size > 0:
+                        stats['frame_stats'] = {
+                            'shape': list(test_frame.shape),
+                            'dtype': str(test_frame.dtype),
+                            'mean': float(np.mean(test_frame)),
+                            'std': float(np.std(test_frame)),
+                            'min': float(np.min(test_frame)),
+                            'max': float(np.max(test_frame)),
+                            'is_black': float(np.mean(test_frame)) < 0.01
+                        }
+                    else:
+                        stats['frame_stats'] = {
+                            'error': 'Frame is None or empty'
+                        }
+                except Exception as e:
+                    stats['frame_stats'] = {
+                        'error': str(e)
+                    }
+            
+            return web.json_response(stats)
+            
+        except Exception as e:
+            logger.error("Failed to get frame stats", error=str(e))
+            return web.json_response({
+                'error': str(e)
+            }, status=500)
+
+    async def debug_scene_status(self, request):
+        """Debug endpoint to return scene initialization status."""
+        try:
+            if not ISAAC_SIM_AVAILABLE or not self.isaac_sim_renderer:
+                return web.json_response({
+                    'error': 'Isaac Sim not available',
+                    'isaac_sim_available': False
+                }, status=503)
+            
+            renderer = self.isaac_sim_renderer
+            
+            status = {
+                'isaac_sim_available': ISAAC_SIM_AVAILABLE,
+                'scene_initialized': renderer.scene_initialized,
+                'world_exists': renderer.world is not None,
+                'camera_exists': renderer.camera is not None,
+                'robot_exists': renderer.robot is not None,
+                'robot_loaded': renderer.robot_loaded,
+                'app_initialized': renderer.app is not None,
+                'camera_state': renderer.camera_state,
+                'robot_config': renderer.robot_config
+            }
+            
+            # Add additional Isaac Sim state if available
+            if renderer.world:
+                try:
+                    status['world_info'] = {
+                        'physics_dt': getattr(renderer.world, 'physics_dt', None),
+                        'rendering_dt': getattr(renderer.world, 'rendering_dt', None),
+                    }
+                except:
+                    pass
+            
+            return web.json_response(status)
+            
+        except Exception as e:
+            logger.error("Failed to get scene status", error=str(e))
+            return web.json_response({
+                'error': str(e)
+            }, status=500)
+
     async def video_stream(self, request):
         """Stream live video frames from Isaac Sim via HTTP (bypasses WebRTC muting)."""
         try:
@@ -356,6 +520,7 @@ class AnvilSimService:
             # Import required modules
             import cv2
             import asyncio
+            import numpy as np
             
             # Set up streaming response
             response = web.StreamResponse(
@@ -450,7 +615,10 @@ class AnvilSimService:
             self.http_app.router.add_get('/health', self.health_check)
             self.http_app.router.add_post('/create_scene', self.create_scene)
             self.http_app.router.add_post('/change_robot', self.change_robot)
+            self.http_app.router.add_post('/update_camera', self.update_camera)
             self.http_app.router.add_get('/video_stream/{session_id}', self.video_stream)
+            self.http_app.router.add_get('/debug/frame_stats', self.debug_frame_stats)
+            self.http_app.router.add_get('/debug/scene_status', self.debug_scene_status)
             self.http_app.router.add_options('/{path:.*}', options_handler)
             
             # Add middleware

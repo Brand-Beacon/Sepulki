@@ -1,0 +1,55 @@
+{
+  "SecurityGroupName": "sepulki-isaac-sim-sg",
+  "Description": "Isaac Sim WebRTC streaming security group",
+  "Rules": [
+    {
+      "Protocol": "tcp",
+      "Port": 22,
+      "Source": "0.0.0.0/0",
+      "Description": "SSH access"
+    },
+    {
+      "Protocol": "tcp",
+      "Port": 8211,
+      "Source": "0.0.0.0/0",
+      "Description": "Isaac Sim WebRTC client"
+    },
+    {
+      "Protocol": "tcp",
+      "Port": 49100,
+      "Source": "0.0.0.0/0",
+      "Description": "Isaac Sim livestream port"
+    },
+    {
+      "Protocol": "udp",
+      "Port": 47998,
+      "Source": "0.0.0.0/0",
+      "Description": "Isaac Sim WebRTC signaling"
+    },
+    {
+      "Protocol": "tcp",
+      "Port": "47995-48012",
+      "Source": "0.0.0.0/0",
+      "Description": "WebRTC media range"
+    },
+    {
+      "Protocol": "udp",
+      "Port": "47995-48012",
+      "Source": "0.0.0.0/0",
+      "Description": "WebRTC media range"
+    },
+    {
+      "Protocol": "tcp",
+      "Port": "49000-49007",
+      "Source": "0.0.0.0/0",
+      "Description": "WebRTC additional range"
+    },
+    {
+      "Protocol": "udp",
+      "Port": "49000-49007",
+      "Source": "0.0.0.0/0",
+      "Description": "WebRTC additional range"
+    }
+  ]
+}
+

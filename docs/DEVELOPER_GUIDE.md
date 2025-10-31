@@ -244,6 +244,144 @@ npm run docker:logs postgres
 npm run docker:logs redis
 ```
 
+## 🤖 Isaac Sim Real 3D Rendering
+
+### Overview
+
+The anvil-sim service provides real-time 3D rendering using NVIDIA Isaac Sim with actual robot models visible in the browser. The system uses Isaac Sim's Camera API for headless rendering, which captures real 3D frames (not placeholders).
+
+### Configuration
+
+**Environment Variables:**
+```bash
+# Isaac Sim installation path
+ISAAC_SIM_BASE=/home/shadeform/isaac-sim/isaac-sim-2023.1.1
+
+# Or in Docker container
+ISAAC_SIM_BASE=/isaac-sim
+```
+
+**Default Settings:**
+- Default Robot: TurtleBot3 (`/Isaac/Robots/TurtleBot3/turtlebot3.usd`)
+- Camera Position: `[2.0, 2.0, 1.5]`
+- Camera Target: `[0.0, 0.0, 0.3]`
+- FOV: `60.0`
+- Max Frame Rate: `30 FPS`
+
+### API Endpoints
+
+**Camera Control:**
+```bash
+POST http://localhost:8002/update_camera
+Content-Type: application/json
+
+{
+  "position": [3.0, 3.0, 2.0],
+  "target": [0.0, 0.0, 0.5],
+  "fov": 70.0
+}
+```
+
+**Debug Endpoints:**
+
+Check scene status:
+```bash
+GET http://localhost:8002/debug/scene_status
+```
+
+Check frame statistics:
+```bash
+GET http://localhost:8002/debug/frame_stats
+```
+
+### Troubleshooting
+
+**Black Frames / No Rendering:**
+
+1. Check scene initialization:
+   ```bash
+   curl http://localhost:8002/debug/scene_status | jq .
+   ```
+   Verify `scene_initialized: true` and `camera_exists: true`
+
+2. Check frame statistics:
+   ```bash
+   curl http://localhost:8002/debug/frame_stats | jq .
+   ```
+   Verify `frame_stats.is_black: false` and `frame_stats.mean > 0.01`
+
+3. Verify Isaac Sim path:
+   - Check `ISAAC_SIM_BASE` environment variable
+   - Ensure Isaac Sim is installed at the specified path
+   - In Docker: ensure `/isaac-sim` is accessible
+
+**Robot Not Loading:**
+
+1. Check robot path in logs:
+   - Default: `/Isaac/Robots/TurtleBot3/turtlebot3.usd`
+   - Verify robot asset exists in Isaac Sim installation
+
+2. Check scene status for robot_loaded:
+   ```bash
+   curl http://localhost:8002/debug/scene_status | jq .robot_loaded
+   ```
+
+3. If robot fails to load, service continues with empty scene (camera will show ground/lighting)
+
+**Camera Control Not Working:**
+
+1. Verify camera exists:
+   ```bash
+   curl http://localhost:8002/debug/scene_status | jq .camera_exists
+   ```
+
+2. Check camera update response:
+   ```bash
+   curl -X POST http://localhost:8002/update_camera \
+     -H "Content-Type: application/json" \
+     -d '{"position": [2,2,1.5], "target": [0,0,0.3], "fov": 60}' | jq .
+   ```
+
+3. Verify camera state updated:
+   ```bash
+   curl http://localhost:8002/debug/frame_stats | jq .camera_state
+   ```
+
+### Browser Verification
+
+Run the Playwright test to verify real rendering:
+```bash
+cd apps/forge-ui
+npx playwright test isaac-sim-real-rendering.spec.ts
+```
+
+The test verifies:
+- ✅ Scene initialization
+- ✅ Non-black frames
+- ✅ Camera control endpoint
+- ✅ Frame statistics
+- ✅ Robot presence
+
+### Technical Details
+
+**Rendering Pipeline:**
+1. Isaac Sim initializes in headless mode with RayTracedLighting renderer
+2. Scene loads: ground plane, dome light, TurtleBot3 robot
+3. Camera captures frames using `Camera.get_rgba()`
+4. Frames converted: RGBA float [0-1] → BGR uint8 [0-255]
+5. Frame validation rejects black frames
+6. Frames streamed via WebRTC or MJPEG HTTP
+
+**Frame Validation:**
+- Rejects frames with mean < 0.01 or max < 0.1
+- Logs frame statistics every 60 frames
+- Automatic retry on capture failure
+
+**Camera API:**
+- Uses `omni.isaac.sensor.Camera`
+- Requires `world.step(render=True)` + `app.update()` for rendering
+- Headless mode supported (unlike viewport capture APIs)
+
 ## 🔄 Migration & Schema Changes
 
 ### Schema Migrations
