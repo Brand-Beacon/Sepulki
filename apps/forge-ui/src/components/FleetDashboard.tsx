@@ -3,7 +3,7 @@
 import { useQuery, useSubscription } from '@apollo/client/react'
 import { FLEETS_QUERY } from '@/lib/graphql/queries'
 import { BELLOWS_STREAM_SUBSCRIPTION, ROBOT_STATUS_SUBSCRIPTION } from '@/lib/graphql/subscriptions'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { Loader2, Wifi, WifiOff, Battery, Activity } from 'lucide-react'
 import dynamic from 'next/dynamic'
@@ -21,7 +21,8 @@ interface FleetDashboardProps {
 export function FleetDashboard({ className = '' }: FleetDashboardProps) {
   const { data: fleetsData, loading: fleetsLoading, error: fleetsError } = useQuery(FLEETS_QUERY, {
     pollInterval: 5000, // Poll every 5 seconds as fallback
-    fetchPolicy: 'cache-and-network'
+    fetchPolicy: 'cache-first', // Use cache-first to avoid flickering on each poll
+    notifyOnNetworkStatusChange: false // Don't trigger loading state on background refetches
   })
 
   // Get fleets with proper type guard
@@ -45,18 +46,36 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
       // In production, would subscribe to each robot individually
       const bellowsData = telemetryData as { bellowsStream?: { metrics?: any[] } } | undefined
       if (bellowsData?.bellowsStream?.metrics) {
-        const statuses: Record<string, any> = {}
-        bellowsData.bellowsStream.metrics.forEach((metric: any) => {
-          statuses[metric.robotId] = {
-            batteryLevel: metric.batteryLevel,
-            healthScore: metric.healthScore,
-            lastSeen: metric.timestamp,
-          }
+        setRobotStatuses((prev) => {
+          // Merge with previous state to avoid unnecessary re-renders
+          const statuses: Record<string, any> = { ...prev }
+          bellowsData.bellowsStream.metrics.forEach((metric: any) => {
+            statuses[metric.robotId] = {
+              batteryLevel: metric.batteryLevel,
+              healthScore: metric.healthScore,
+              lastSeen: metric.timestamp,
+            }
+          })
+          return statuses
         })
-        setRobotStatuses(statuses)
       }
     }
-  }, [telemetryData, fleetsData])
+  }, [telemetryData, fleets.length]) // Only depend on fleets.length, not fleetsData to avoid re-renders on every poll
+
+  // Memoize calculations to prevent unnecessary recalculations on every render
+  // IMPORTANT: All hooks must be called before any conditional returns
+  const allRobots = useMemo(() => fleets.flatMap((fleet: any) => fleet.robots || []), [fleets])
+  
+  // Calculate statistics (memoized)
+  const stats = useMemo(() => {
+    const activeFleets = fleets.filter((f: any) => f.status === 'ACTIVE').length
+    const workingRobots = allRobots.filter((r: any) => r.status === 'WORKING').length
+    const avgBattery = allRobots.length > 0
+      ? Math.round(allRobots.reduce((sum: number, r: any) => sum + (r.batteryLevel || 0), 0) / allRobots.length)
+      : 0
+    const activeTasks = fleets.filter((f: any) => f.activeTask).length
+    return { activeFleets, workingRobots, avgBattery, activeTasks }
+  }, [fleets, allRobots])
 
   if (fleetsLoading) {
     return (
@@ -75,16 +94,6 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
       </div>
     )
   }
-
-  const allRobots = fleets.flatMap((fleet: any) => fleet.robots || [])
-  
-  // Calculate statistics
-  const activeFleets = fleets.filter((f: any) => f.status === 'ACTIVE').length
-  const workingRobots = allRobots.filter((r: any) => r.status === 'WORKING').length
-  const avgBattery = allRobots.length > 0
-    ? Math.round(allRobots.reduce((sum: number, r: any) => sum + (r.batteryLevel || 0), 0) / allRobots.length)
-    : 0
-  const activeTasks = fleets.filter((f: any) => f.activeTask).length
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -128,7 +137,7 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
             <div className="text-2xl mr-3"></div>
             <div>
               <p className="text-sm font-medium text-gray-500">Active Fleets</p>
-              <p className="text-2xl font-bold text-gray-900">{activeFleets}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.activeFleets}</p>
             </div>
           </div>
         </div>
@@ -138,7 +147,7 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
             <div className="text-2xl mr-3"></div>
             <div>
               <p className="text-sm font-medium text-gray-500">Working Robots</p>
-              <p className="text-2xl font-bold text-gray-900">{workingRobots}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.workingRobots}</p>
             </div>
           </div>
         </div>
@@ -148,7 +157,7 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
             <Battery className="w-6 h-6 mr-3 text-orange-600" />
             <div>
               <p className="text-sm font-medium text-gray-500">Avg Battery</p>
-              <p className="text-2xl font-bold text-gray-900">{avgBattery}%</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.avgBattery}%</p>
             </div>
           </div>
         </div>
@@ -158,7 +167,7 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
             <Activity className="w-6 h-6 mr-3 text-blue-600" />
             <div>
               <p className="text-sm font-medium text-gray-500">Active Tasks</p>
-              <p className="text-2xl font-bold text-gray-900">{activeTasks}</p>
+              <p className="text-2xl font-bold text-gray-900">{stats.activeTasks}</p>
             </div>
           </div>
         </div>

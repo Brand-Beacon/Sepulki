@@ -244,7 +244,45 @@ export const fleetResolvers = {
 
     async pose(parent: any, args: any, context: Context) {
       // TODO: Get latest pose from telemetry service
-      return parent.last_pose || null;
+      if (!parent.last_pose) {
+        return null;
+      }
+
+      const lastPose = parent.last_pose;
+      
+      // Transform database pose format (x,y,z) to GraphQL format (latitude, longitude, altitude)
+      // For now, we'll map x->latitude, y->longitude, z->altitude
+      // In production, this would need proper coordinate system transformation
+      const position = lastPose.position;
+      if (position && (position.x !== undefined || position.y !== undefined || position.z !== undefined)) {
+        return {
+          position: {
+            latitude: position.x ?? 0,
+            longitude: position.y ?? 0,
+            altitude: position.z ?? 0,
+          },
+          orientation: lastPose.orientation || {},
+          jointPositions: lastPose.jointPositions || null,
+          timestamp: lastPose.timestamp || new Date().toISOString(),
+        };
+      }
+
+      // If position already has latitude/longitude (already in correct format)
+      if (position && (position.latitude !== undefined || position.longitude !== undefined)) {
+        return {
+          position: {
+            latitude: position.latitude ?? 0,
+            longitude: position.longitude ?? 0,
+            altitude: position.altitude ?? 0,
+          },
+          orientation: lastPose.orientation || {},
+          jointPositions: lastPose.jointPositions || null,
+          timestamp: lastPose.timestamp || new Date().toISOString(),
+        };
+      }
+
+      // If pose structure is invalid, return null (pose is nullable)
+      return null;
     },
 
     async streamUrl(parent: any, args: any, context: Context) {

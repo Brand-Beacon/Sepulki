@@ -58,7 +58,16 @@ export const FLEET_QUERY = gql`
         batteryLevel
         healthScore
         lastSeen
-        pose
+        pose {
+          position {
+            latitude
+            longitude
+            altitude
+          }
+          orientation
+          jointPositions
+          timestamp
+        }
         streamUrl
       }
       activeTask {
@@ -84,7 +93,16 @@ export const ROBOTS_QUERY = gql`
       batteryLevel
       healthScore
       lastSeen
-      pose
+      pose {
+        position {
+          latitude
+          longitude
+          altitude
+        }
+        orientation
+        jointPositions
+        timestamp
+      }
       streamUrl
     }
   }
@@ -101,7 +119,16 @@ export const ROBOT_QUERY = gql`
       batteryLevel
       healthScore
       lastSeen
-      pose
+      pose {
+        position {
+          latitude
+          longitude
+          altitude
+        }
+        orientation
+        jointPositions
+        timestamp
+      }
       streamUrl
       currentIngot {
         id
