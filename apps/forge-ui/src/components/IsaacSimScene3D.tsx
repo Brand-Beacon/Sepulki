@@ -60,7 +60,11 @@ export function IsaacSimScene3D({
   // Check Isaac Sim service availability
   const checkServiceAvailability = useCallback(async (): Promise<boolean> => {
     try {
-      const response = await fetch('http://localhost:8002/health', {
+      // Use environment-aware endpoint
+      const { env } = await import('@/lib/env')
+      const anvilSimUrl = env.anvilSimEndpoint || 'http://localhost:8002'
+      
+      const response = await fetch(`${anvilSimUrl}/health`, {
         method: 'GET',
         timeout: 5000
       } as any)
@@ -80,14 +84,18 @@ export function IsaacSimScene3D({
     try {
       setConnectionState('connecting')
       
-      const response = await fetch('http://localhost:8002/create_scene', {
+      // Use environment-aware endpoint
+      const { env } = await import('@/lib/env')
+      const anvilSimUrl = env.anvilSimEndpoint || 'http://localhost:8002'
+      
+      const response = await fetch(`${anvilSimUrl}/create_scene`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           user_id: userId,
-          sepulka_id: spec?.id || 'demo-robot',
+          sepulka_id: (spec as any)?.id || 'demo-robot',
           environment,
           quality_profile: qualityProfile,
           urdf_content: typeof urdf === 'string' ? urdf : urdf?.toString()
@@ -104,17 +112,17 @@ export function IsaacSimScene3D({
         throw new Error(data.message || 'Session creation failed')
       }
       
-      console.log('✅ Isaac Sim session created:', data.session_id)
+      console.log('Isaac Sim session created:', data.session_id)
       return data.session_id
       
     } catch (error) {
-      console.error('❌ Failed to create Isaac Sim session:', error)
+      console.error('Failed to create Isaac Sim session:', error)
       setError(`Session creation failed: ${error}`)
       setConnectionState('error')
       onError?.(error as Error)
       return null
     }
-  }, [userId, spec?.id, environment, qualityProfile, urdf, onError])
+  }, [userId, (spec as any)?.id, environment, qualityProfile, urdf, onError])
 
   // Initialize Isaac Sim connection
   useEffect(() => {

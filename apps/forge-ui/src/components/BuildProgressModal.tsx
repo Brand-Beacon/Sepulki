@@ -37,7 +37,7 @@ export function BuildProgressModal({ isOpen, onClose, designName, ingot }: Build
       'Compiling robot assets...',
       'Creating deployment package...',
       'Signing build artifacts...',
-      'Build complete! 🎉'
+      'Build complete!'
     ];
 
     let stepIndex = 0;
@@ -60,7 +60,6 @@ export function BuildProgressModal({ isOpen, onClose, designName, ingot }: Build
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
         <div className="text-center">
-          <div className="text-6xl mb-4">🔨</div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Building Design</h2>
           <p className="text-gray-600 mb-6">"{designName}"</p>
           
@@ -89,7 +88,7 @@ export function BuildProgressModal({ isOpen, onClose, designName, ingot }: Build
           {progress >= 100 ? (
             <div className="space-y-3">
               <div className="p-3 bg-green-50 rounded-lg">
-                <p className="text-green-800 font-medium">✅ Build completed successfully!</p>
+                <p className="text-green-800 font-medium">Build completed successfully!</p>
                 <p className="text-green-600 text-sm">Your robot is ready for deployment.</p>
               </div>
               <div className="flex space-x-3">
@@ -106,7 +105,7 @@ export function BuildProgressModal({ isOpen, onClose, designName, ingot }: Build
                   }}
                   className="flex-1 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700"
                 >
-                  🚀 Deploy
+                  Deploy
                 </button>
               </div>
             </div>

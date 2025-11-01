@@ -73,7 +73,8 @@ function MyDesignsPageContent() {
       name: 'Warehouse Picker Pro',
       description: 'Advanced warehouse automation with vision guidance and 50kg payload capacity',
       status: 'CAST_READY',
-      pattern: { name: 'Industrial Arm - 6DOF' },
+      version: '1',
+      pattern: { name: 'Industrial Arm - 6DOF', category: 'industrial' },
       alloys: [
         { name: 'ServoMax Pro 3000', type: 'ACTUATOR' },
         { name: 'GripForce Elite', type: 'END_EFFECTOR' },
@@ -88,7 +89,8 @@ function MyDesignsPageContent() {
       name: 'Assembly Line Assistant',
       description: 'Precision assembly robot for electronics manufacturing',
       status: 'FORGING',
-      pattern: { name: 'Precision Assembler - 4DOF' },
+      version: '1',
+      pattern: { name: 'Precision Assembler - 4DOF', category: 'industrial' },
       alloys: [
         { name: 'PrecisionDrive Mini', type: 'ACTUATOR' },
         { name: 'MicroGripper v2', type: 'END_EFFECTOR' },
@@ -102,7 +104,8 @@ function MyDesignsPageContent() {
       name: 'Quality Inspector Bot', 
       description: 'Automated visual inspection with AI-powered defect detection',
       status: 'DEPLOYED',
-      pattern: { name: 'Inspection Platform - 3DOF' },
+      version: '1',
+      pattern: { name: 'Inspection Platform - 3DOF', category: 'industrial' },
       alloys: [
         { name: 'StealthMove Linear', type: 'ACTUATOR' },
         { name: 'VisionEye 8K Pro', type: 'SENSOR' },
@@ -122,12 +125,12 @@ function MyDesignsPageContent() {
       try {
         const userDesigns = await getMySepulkas(smith?.id);
         setDesigns(userDesigns || []);
-        console.log(`✅ Loaded ${userDesigns?.length || 0} designs from backend`);
+        console.log(`Loaded ${userDesigns?.length || 0} designs from backend`);
       } catch (err) {
-        console.log('📺 Backend unavailable - using demo data to showcase BUILD functionality');
+        console.log('Backend unavailable - using demo data to showcase BUILD functionality');
         setDesigns(demoDesigns);
         // Don't set error when demo data loads successfully
-        console.log(`✅ Demo data loaded: ${demoDesigns.length} sample designs`);
+        console.log(`Demo data loaded: ${demoDesigns.length} sample designs`);
       }
     } catch (err) {
       console.error('Failed to load designs:', err);
@@ -145,15 +148,15 @@ function MyDesignsPageContent() {
     setActionLoading(design.id);
     
     try {
-      console.log(`🔨 Starting build for "${design.name}" (${design.id})`);
+      console.log(`Starting build for "${design.name}" (${design.id})`);
       
       // Try backend first, fallback to demo simulation
       try {
         const response = await castIngot(design.id);
         
-        if (response.castIngot.ingot) {
-          const ingot = response.castIngot.ingot;
-          console.log(`✅ Backend build started: ${ingot.buildHash} (v${ingot.version})`);
+        if (response.ingot) {
+          const ingot = response.ingot;
+          console.log(`Backend build started: ${ingot.buildHash} (v${ingot.version})`);
           
           // Show build progress modal
           setBuildingDesign(design);
@@ -165,7 +168,7 @@ function MyDesignsPageContent() {
           return;
         }
       } catch (backendError) {
-        console.log('📺 Backend unavailable for build - using demo simulation');
+        console.log('Backend unavailable for build - using demo simulation');
         
         // Demo mode: simulate successful build
         const mockIngot = {
@@ -181,14 +184,14 @@ function MyDesignsPageContent() {
           createdAt: new Date().toISOString()
         };
         
-        console.log(`🔨 Demo build simulation starting for "${design.name}"`);
+        console.log(`Demo build simulation starting for "${design.name}"`);
         
         // Show build progress modal immediately
         setBuildingDesign(design);
         setCurrentIngot(mockIngot);
         setBuildModalOpen(true);
         
-        console.log(`✅ Demo build started: ${mockIngot.buildHash} (v${mockIngot.version})`);
+        console.log(`Demo build started: ${mockIngot.buildHash} (v${mockIngot.version})`);
         return;
       }
       
@@ -223,10 +226,10 @@ function MyDesignsPageContent() {
     try {
       if (demoMode) {
         // Demo mode: simulate deletion
-        console.log(`📺 Demo mode: deleting "${design.name}"`);
+        console.log(`Demo mode: deleting "${design.name}"`);
         deleteDesign(design.id);
         await loadDesigns();
-        console.log(`✅ Demo deletion completed for "${design.name}"`);
+        console.log(`Demo deletion completed for "${design.name}"`);
         return;
       }
 
@@ -236,7 +239,7 @@ function MyDesignsPageContent() {
       // Remove from local state immediately for better UX
       setDesigns(prev => prev.filter(d => d.id !== design.id));
       
-      console.log(`✅ "${design.name}" has been deleted successfully.`);
+      console.log(`"${design.name}" has been deleted successfully.`);
     } catch (error) {
       console.error('Delete failed:', error);
       setError(`Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -265,20 +268,8 @@ function MyDesignsPageContent() {
   };
 
   const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'FORGING':
-        return '🔥';
-      case 'CAST_READY':
-        return '⚡';
-      case 'CASTING':
-        return '🔨';
-      case 'INGOT_READY':
-        return '📦';
-      case 'DEPLOYED':
-        return '🚀';
-      default:
-        return '⚪';
-    }
+    // Status icons removed per request
+    return '';
   };
 
   const filteredDesigns = designs.filter(design => {
@@ -297,7 +288,7 @@ function MyDesignsPageContent() {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 flex items-center">
-            🔥 My Designs
+            My Designs
           </h1>
           <p className="text-gray-600 mt-2">Your saved robot configurations and builds</p>
         </div>
@@ -305,7 +296,7 @@ function MyDesignsPageContent() {
           href="/configure"
           className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 flex items-center"
         >
-          ➕ Create New Design
+          Create New Design
         </Link>
       </div>
 
@@ -368,7 +359,6 @@ function MyDesignsPageContent() {
         </div>
       ) : filteredDesigns.length === 0 ? (
         <div className="text-center py-12">
-          <div className="text-6xl mb-4">🔥</div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             {filter === 'all' ? 'No designs yet' : `No ${filter} designs`}
           </h3>
@@ -382,7 +372,7 @@ function MyDesignsPageContent() {
             href="/configure"
             className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700"
           >
-            🔥 Forge Your First Robot
+            Forge Your First Robot
           </Link>
         </div>
       ) : (
@@ -448,9 +438,7 @@ function MyDesignsPageContent() {
                         key={index}
                         className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-100 text-gray-800"
                       >
-                        {alloy.type === 'ACTUATOR' ? '⚙️' : 
-                         alloy.type === 'END_EFFECTOR' ? '🤏' :
-                         alloy.type === 'SENSOR' ? '👁️' : '🔧'} {alloy.name}
+                        {alloy.name}
                       </span>
                     ))}
                     {design.alloys.length > 3 && (
@@ -468,7 +456,7 @@ function MyDesignsPageContent() {
                       href={`/configure?editDesign=${design.id}`}
                       className="text-blue-600 hover:text-blue-700 text-sm font-medium"
                     >
-                      📝 Edit
+                      Edit
                     </Link>
                     <button
                       className="text-gray-600 hover:text-gray-700 text-sm font-medium"
@@ -484,7 +472,7 @@ function MyDesignsPageContent() {
                         window.location.href = '/configure?duplicate=true';
                       }}
                     >
-                      📋 Duplicate
+                      Duplicate
                     </button>
                     {(design.status === 'CAST_READY' || design.status === 'READY') && (
                       <button
@@ -492,7 +480,7 @@ function MyDesignsPageContent() {
                         onClick={() => handleBuildDesign(design)}
                         disabled={actionLoading === design.id}
                       >
-                        {actionLoading === design.id ? '⏳' : '🔨'} Build
+                        {actionLoading === design.id ? 'Building...' : 'Build'}
                       </button>
                     )}
                   </div>
@@ -501,7 +489,7 @@ function MyDesignsPageContent() {
                     onClick={() => handleDeleteDesign(design)}
                     disabled={actionLoading === design.id}
                   >
-                    {actionLoading === design.id ? '⏳' : '🗑️'}
+                    {actionLoading === design.id ? 'Deleting...' : 'Delete'}
                   </button>
                 </div>
               </div>
@@ -513,7 +501,7 @@ function MyDesignsPageContent() {
       {/* Summary Stats */}
       {!loading && !error && designs.length > 0 && (
         <div className="mt-12 bg-gray-50 rounded-lg p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">📊 Design Portfolio Summary</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Design Portfolio Summary</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
               <div className="text-2xl font-bold text-orange-600">{designs.length}</div>
@@ -548,13 +536,13 @@ function MyDesignsPageContent() {
             href="/configure"
             className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 flex items-center"
           >
-            🔥 Create New Design
+            Create New Design
           </Link>
           <Link
             href="/dashboard" 
             className="bg-gray-600 text-white px-6 py-3 rounded-lg hover:bg-gray-700 flex items-center"
           >
-            ⚒️ Fleet Dashboard
+            Fleet Dashboard
           </Link>
         </div>
       </div>

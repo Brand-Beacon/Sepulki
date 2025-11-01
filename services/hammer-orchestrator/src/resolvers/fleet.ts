@@ -187,14 +187,7 @@ export const fleetResolvers = {
   },
 
   Subscription: {
-    robotStatus: {
-      subscribe: async (parent: any, { robotId }: any, context: Context) => {
-        await requirePermission(context, Permission.VIEW_ROBOTS);
-        
-        // TODO: Implement subscription with Redis pub/sub
-        throw new ServiceError('subscriptions', 'Real-time subscriptions not yet implemented');
-      }
-    }
+    // robotStatus subscription moved to subscriptions.ts
   },
 
   Fleet: {
@@ -251,7 +244,61 @@ export const fleetResolvers = {
 
     async pose(parent: any, args: any, context: Context) {
       // TODO: Get latest pose from telemetry service
-      return parent.last_pose || null;
+      if (!parent.last_pose) {
+        return null;
+      }
+
+      const lastPose = parent.last_pose;
+      
+      // Transform database pose format (x,y,z) to GraphQL format (latitude, longitude, altitude)
+      // For now, we'll map x->latitude, y->longitude, z->altitude
+      // In production, this would need proper coordinate system transformation
+      const position = lastPose.position;
+      if (position && (position.x !== undefined || position.y !== undefined || position.z !== undefined)) {
+        return {
+          position: {
+            latitude: position.x ?? 0,
+            longitude: position.y ?? 0,
+            altitude: position.z ?? 0,
+          },
+          orientation: lastPose.orientation || {},
+          jointPositions: lastPose.jointPositions || null,
+          timestamp: lastPose.timestamp || new Date().toISOString(),
+        };
+      }
+
+      // If position already has latitude/longitude (already in correct format)
+      if (position && (position.latitude !== undefined || position.longitude !== undefined)) {
+        return {
+          position: {
+            latitude: position.latitude ?? 0,
+            longitude: position.longitude ?? 0,
+            altitude: position.altitude ?? 0,
+          },
+          orientation: lastPose.orientation || {},
+          jointPositions: lastPose.jointPositions || null,
+          timestamp: lastPose.timestamp || new Date().toISOString(),
+        };
+      }
+
+      // If pose structure is invalid, return null (pose is nullable)
+      return null;
+    },
+
+    async streamUrl(parent: any, args: any, context: Context) {
+      // Generate stream URL for robot
+      // In production, this would connect to the robot's actual camera stream
+      // For now, we'll use the video-stream-proxy service
+      const proxyUrl = process.env.VIDEO_PROXY_URL || 'http://localhost:8889';
+      const robotId = parent.id;
+      const robotName = parent.name || 'robot';
+      
+      // Create a session ID for this robot's stream
+      // In production, this would be managed per-robot and persist
+      const sessionId = `robot_${robotId}_${Date.now()}`;
+      
+      // Return the embed URL for the stream
+      return `${proxyUrl}/stream/${sessionId}/embed`;
     }
   }
 };

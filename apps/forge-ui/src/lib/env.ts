@@ -9,10 +9,18 @@ export interface EnvironmentConfig {
   
   // API Configuration
   graphqlEndpoint: string
+  anvilSimEndpoint: string
+  anvilSimWebSocketEndpoint?: string
+  videoProxyUrl: string
   
+  // Isaac Sim Configuration
+  isaacSimIP: string
+  isaacSimPort: string
+
   // Authentication
   useRealAuth: boolean
   authProviders: string[]
+  localAuthUrl: string
   
   // Storage
   minioEndpoint?: string
@@ -47,12 +55,35 @@ function createEnvironmentConfig(): EnvironmentConfig {
   const useRealAuth = isProduction || !!process.env.GITHUB_CLIENT_ID || !!process.env.GOOGLE_CLIENT_ID
   
   // Auto-detect GraphQL endpoint
-  const graphqlEndpoint = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 
-    (isProduction 
-      ? (process.env.VERCEL_URL 
+  const graphqlEndpoint = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT ||
+    (isProduction
+      ? (process.env.VERCEL_URL
           ? `https://${process.env.VERCEL_URL}/api/graphql`
           : '/api/graphql')
       : 'http://localhost:4000/graphql')
+
+  // Anvil Sim service endpoint (defaults to Brev instance if available)
+  const anvilSimEndpoint = process.env.NEXT_PUBLIC_ANVIL_SIM_ENDPOINT ||
+    process.env.ANVIL_SIM_ENDPOINT ||
+    'http://localhost:8002'
+
+  // Separate WebSocket endpoint for tunneling (optional)
+  const anvilSimWebSocketEndpoint = process.env.NEXT_PUBLIC_ANVIL_SIM_WS_ENDPOINT ||
+    process.env.ANVIL_SIM_WS_ENDPOINT
+
+  // Video proxy for Isaac Sim streaming
+  const videoProxyUrl = process.env.NEXT_PUBLIC_VIDEO_PROXY_URL ||
+    'http://localhost:8889'
+
+  // Isaac Sim AWS EC2 configuration
+  const isaacSimIP = process.env.NEXT_PUBLIC_ISAAC_SIM_IP ||
+    '18.234.83.45'
+  const isaacSimPort = process.env.NEXT_PUBLIC_ISAAC_SIM_PORT ||
+    '8211'
+
+  // Local Auth Service URL (use 127.0.0.1 to avoid IPv6 issues)
+  const localAuthUrl = process.env.NEXT_PUBLIC_LOCAL_AUTH_URL ||
+    'http://127.0.0.1:4446'
 
   // Determine auth providers available
   const authProviders: string[] = []
@@ -70,10 +101,18 @@ function createEnvironmentConfig(): EnvironmentConfig {
     
     // API Configuration
     graphqlEndpoint,
+    anvilSimEndpoint,
+    anvilSimWebSocketEndpoint,
+    videoProxyUrl,
+    
+    // Isaac Sim Configuration
+    isaacSimIP,
+    isaacSimPort,
     
     // Authentication
     useRealAuth,
     authProviders,
+    localAuthUrl,
     
     // Storage
     minioEndpoint: process.env.NEXT_PUBLIC_MINIO_ENDPOINT,
@@ -95,10 +134,14 @@ export const shouldUseRealAuth = () => env.useRealAuth
 
 // Development helpers
 if (env.isDevelopment) {
-  console.log('🔧 Sepulki Environment Configuration:', {
+  console.log('Sepulki Environment Configuration:', {
     platform: env.deploymentPlatform,
     auth: env.authProviders,
     graphql: env.graphqlEndpoint,
+    anvilSim: env.anvilSimEndpoint,
+    anvilSimWS: env.anvilSimWebSocketEndpoint,
+    videoProxy: env.videoProxyUrl,
+    isaacSim: `${env.isaacSimIP}:${env.isaacSimPort}`,
     mockAuth: shouldUseMockAuth(),
   })
 }

@@ -122,11 +122,11 @@ export function DemoModeProvider({ children }: { children: React.ReactNode }) {
         
         if (!response.ok) {
           setDemoMode(true);
-          console.log('📺 Demo mode activated - using local data');
+          console.log('Demo mode activated - using local data');
         }
       } catch (error) {
         setDemoMode(true);
-        console.log('📺 Demo mode activated - backend unavailable');
+        console.log('Demo mode activated - backend unavailable');
       }
     };
 

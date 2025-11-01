@@ -1,0 +1,97 @@
+# Docker Compose for Isaac Sim on AWS EC2
+# Provides WebRTC streaming with auto-restart and volume persistence
+
+version: '3.8'
+
+services:
+  isaac-sim:
+    image: nvcr.io/nvidia/isaac-sim:2023.1.1
+    container_name: isaac-sim-webrtc
+    restart: unless-stopped
+    
+    # GPU access
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    
+    # Network ports for WebRTC streaming
+    ports:
+      - "8211:8211"    # WebRTC client
+      - "49100:49100"  # Livestream port
+      - "47998:47998/udp"  # WebRTC signaling
+    
+    # Environment variables
+    environment:
+      - OMNI_SERVER=${PUBLIC_IP:-localhost}
+      - ANVIL_HEADLESS=true
+      - ANVIL_LIVESTREAM=true
+      - ANVIL_WIDTH=1920
+      - ANVIL_HEIGHT=1080
+      - ANVIL_PHYSICS_HZ=240
+      - ANVIL_RENDER_HZ=60
+    
+    # Persistent volumes
+    volumes:
+      - isaac_assets:/assets
+      - isaac_logs:/var/log/isaac-sim
+      - isaac_cache:/tmp/isaac-sim
+    
+    # Health check
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8211/streaming/webrtc-client"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    
+    # Command to start Isaac Sim in WebRTC mode
+    command: ["./isaac-sim.headless.webrtc.sh"]
+    
+    # Resource limits
+    mem_limit: 16g
+    cpus: 4.0
+
+  # Optional: Nginx reverse proxy for HTTPS
+  nginx:
+    image: nginx:alpine
+    container_name: isaac-sim-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - isaac-sim
+    profiles:
+      - https
+
+volumes:
+  isaac_assets:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/ubuntu/isaac-sim/assets
+  isaac_logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/ubuntu/isaac-sim/logs
+  isaac_cache:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: /home/ubuntu/isaac-sim/cache
+
+networks:
+  default:
+    name: isaac-sim-network
+

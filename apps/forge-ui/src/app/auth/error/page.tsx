@@ -19,7 +19,6 @@ export default function AuthErrorPage() {
       <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8">
         {/* Sepulki Branding */}
         <div className="text-center mb-8">
-          <div className="text-4xl mb-2">🔥</div>
           <h1 className="text-3xl font-bold text-gray-900">Sepulki Forge</h1>
         </div>
 
@@ -27,7 +26,7 @@ export default function AuthErrorPage() {
         <div className="mb-6">
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
             <div className="flex items-start">
-              <div className="text-red-500 mr-2 text-xl">⚠️</div>
+              <div className="text-red-500 mr-2 text-xl"></div>
               <div>
                 <h2 className="text-lg font-medium text-red-800 mb-2">Sign In Error</h2>
                 <p className="text-sm text-red-600">

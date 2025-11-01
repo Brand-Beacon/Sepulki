@@ -86,7 +86,7 @@ function AnalyzeContent() {
     // Store the analysis in localStorage for reference in later steps
     localStorage.setItem('requirementAnalysis', analysis);
     localStorage.setItem('userInput', searchParams.get('input') || '');
-    router.push('/configure?step=2');
+    router.push('/design/configure?step=2');
   };
 
   return (

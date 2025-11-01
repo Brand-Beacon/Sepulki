@@ -17,13 +17,11 @@ import structlog
 import websockets
 from websockets.server import WebSocketServerProtocol
 
-# Import video frame generator and media source
+# Import real Isaac Sim renderer
 import sys
 import os
 sys.path.append(os.path.dirname(__file__))
-from video_frame_generator import get_video_generator
-from media_source import create_media_source, close_media_source, MEDIA_AVAILABLE
-from test_video_generator import create_test_video_file, cleanup_test_video
+from isaac_sim_real_renderer import get_isaac_sim_real_renderer, ISAAC_SIM_AVAILABLE
 
 # Real aiortc for video streaming
 try:
@@ -62,10 +60,10 @@ class IsaacSimVideoTrack(VideoStreamTrack):
         self.client_id = client_id
         self.frame_counter = 0
         
-        # Initialize video generator only if WEBRTC is available
+        # Initialize real Isaac Sim renderer only if WEBRTC is available
         if WEBRTC_AVAILABLE:
-            self.video_generator = get_video_generator()
-            logger.info("🎬 Isaac Sim video track initialized", client_id=client_id)
+            self.isaac_sim_renderer = get_isaac_sim_real_renderer()
+            logger.info("🎬 Real Isaac Sim video track initialized", client_id=client_id)
             
             # CRITICAL: Start frame production immediately 
             self._start_frame_production()
@@ -112,10 +110,31 @@ class IsaacSimVideoTrack(VideoStreamTrack):
             logger.info("🎬 VIDEO TRACK RECV() CALLED!", 
                        client_id=self.client_id, pts=pts, time_base=time_base)
             
-            # Generate frame from Isaac Sim video generator  
-            frame_data = self.video_generator.generate_frame()
+            # Generate frame from real Isaac Sim renderer  
+            if ISAAC_SIM_AVAILABLE:
+                frame_data = await self.isaac_sim_renderer.render_frame()
+                
+                # Validate frame - reject all-black frames
+                if frame_data is not None and frame_data.size > 0:
+                    frame_mean = np.mean(frame_data)
+                    frame_max = np.max(frame_data)
+                    
+                    # Check if frame is all black (mean < 0.01 and max < 0.1)
+                    if frame_mean < 0.01 or frame_max < 0.1:
+                        logger.warning("⚠️ Rejecting black frame", 
+                                     client_id=self.client_id,
+                                     frame_mean=frame_mean, 
+                                     frame_max=frame_max)
+                        # Return None to skip this frame - aiortc will handle retry
+                        return None
+                else:
+                    logger.warning("⚠️ Empty frame data from renderer", client_id=self.client_id)
+                    return None
+            else:
+                # Fallback to black frame if Isaac Sim not available
+                frame_data = np.zeros((1080, 1920, 3), dtype=np.uint8)
             
-            logger.info("✅ Generated Isaac Sim frame", client_id=self.client_id, 
+            logger.debug("✅ Generated Isaac Sim frame", client_id=self.client_id, 
                        frame_shape=frame_data.shape, frame_dtype=frame_data.dtype)
             
             # Create av.VideoFrame with proper format
@@ -123,7 +142,7 @@ class IsaacSimVideoTrack(VideoStreamTrack):
             frame.pts = pts
             frame.time_base = time_base
             
-            logger.info("📹 Sending video frame to browser", 
+            logger.debug("📹 Sending video frame to browser", 
                        client_id=self.client_id, pts=pts, format=frame.format.name)
             
             return frame
@@ -134,17 +153,32 @@ class IsaacSimVideoTrack(VideoStreamTrack):
             import traceback
             logger.error("❌ Full traceback", traceback=traceback.format_exc())
             
-            # Return a bright test frame for debugging
+            # Retry frame generation once before falling back
             try:
-                pts, time_base = await self.next_timestamp()
-                test_frame = np.full((480, 640, 3), [0, 255, 255], dtype=np.uint8)  # Cyan frame
-                frame = av.VideoFrame.from_ndarray(test_frame, format="bgr24") 
-                frame.pts = pts
-                frame.time_base = time_base
-                logger.warning("⚠️ Returning fallback cyan frame", client_id=self.client_id)
-                return frame
-            except Exception as fallback_error:
-                logger.error("❌ Even fallback frame failed!", error=str(fallback_error))
+                logger.info("🔄 Retrying frame generation", client_id=self.client_id)
+                await asyncio.sleep(0.01)  # Brief pause before retry
+                
+                if ISAAC_SIM_AVAILABLE:
+                    frame_data = await self.isaac_sim_renderer.render_frame()
+                    if frame_data is not None and frame_data.size > 0:
+                        frame_mean = np.mean(frame_data)
+                        if frame_mean > 0.01:  # Valid frame
+                            pts, time_base = await self.next_timestamp()
+                            frame = av.VideoFrame.from_ndarray(frame_data, format="bgr24")
+                            frame.pts = pts
+                            frame.time_base = time_base
+                            logger.info("✅ Retry successful", client_id=self.client_id)
+                            return frame
+                
+                # If retry failed, return None to let aiortc handle it
+                logger.warning("⚠️ Retry failed, skipping frame", client_id=self.client_id)
+                return None
+                
+            except Exception as retry_error:
+                logger.error("❌ Retry also failed", 
+                           client_id=self.client_id, 
+                           error=str(retry_error))
+                # Return None - aiortc will handle frame skipping gracefully
                 return None
 
 @dataclass
@@ -197,6 +231,10 @@ class WebRTCStreamManager:
         self.session_streams: Dict[str, List[str]] = {}  # session_id -> client_ids
         self.websocket_server = None
         self.running = False
+        
+        # Video frame generator removed - using isaac_sim_real_renderer directly
+        # from video_frame_generator import IsaacSimVideoGenerator
+        # self.video_frame_generator = IsaacSimVideoGenerator()
         
         # STUN/TURN servers for WebRTC connectivity  
         if WEBRTC_AVAILABLE:
@@ -350,7 +388,7 @@ class WebRTCStreamManager:
         if message_type == "offer":
             await self._handle_webrtc_offer(client_id, data)
             
-        elif message_type == "answer":
+        elif message_type == "webrtc_answer":
             await self._handle_webrtc_answer(client_id, data)
             
         elif message_type == "ice_candidate":
@@ -367,6 +405,11 @@ class WebRTCStreamManager:
             
         elif message_type == "joint_control":
             await self._handle_joint_control(client_id, data)
+            
+        elif message_type == "start_video_stream":
+            await self._start_video_stream(client_id, data)
+        elif message_type == "start_webrtc_stream":
+            await self._start_webrtc_stream(client_id, data)
             
         else:
             logger.warning("Unknown message type", 
@@ -453,19 +496,20 @@ class WebRTCStreamManager:
     async def _handle_webrtc_answer(self, client_id: str, data: Dict[str, Any]):
         """Handle WebRTC answer from client."""
         client = self.clients.get(client_id)
-        if not client:
+        if not client or not hasattr(client, 'peer_connection') or not client.peer_connection:
+            logger.warning("No peer connection found for client", client_id=client_id)
             return
         
         try:
-            sdp = data.get("sdp")
-            if not sdp:
+            answer_data = data.get("answer")
+            if not answer_data:
+                logger.warning("No answer data in WebRTC answer message", client_id=client_id)
                 return
                 
             if WEBRTC_AVAILABLE:
-                remote_desc = RTCSessionDescription(sdp, "answer")
+                remote_desc = RTCSessionDescription(answer_data.get("sdp"), answer_data.get("type", "answer"))
                 await client.peer_connection.setRemoteDescription(remote_desc)
-            
-            logger.info("WebRTC answer handled", client_id=client_id)
+                logger.info("✅ WebRTC answer set on peer connection", client_id=client_id)
             
         except Exception as e:
             logger.error("Failed to handle WebRTC answer", 
@@ -511,12 +555,13 @@ class WebRTCStreamManager:
             "fov": data.get("fov", 50)
         }
         
-        # Update video generator with new camera position
-        get_video_generator().update_camera(
-            camera_data["position"],
-            camera_data["target"], 
-            camera_data["fov"]
-        )
+        # Update real Isaac Sim renderer with new camera position
+        if ISAAC_SIM_AVAILABLE:
+            self.isaac_sim_renderer.update_camera(
+                camera_data["position"],
+                camera_data["target"], 
+                camera_data["fov"]
+            )
         
         # Forward to Isaac Sim Manager
         if self.isaac_sim_manager:
@@ -542,8 +587,9 @@ class WebRTCStreamManager:
         
         joint_states = data.get("joint_states", {})
         
-        # Update video generator with new joint states
-        get_video_generator().update_joints(joint_states)
+        # Update real Isaac Sim renderer with new joint states
+        if ISAAC_SIM_AVAILABLE:
+            await self.isaac_sim_renderer.update_joints(joint_states)
         
         # Forward to Isaac Sim Manager
         if self.isaac_sim_manager:
@@ -636,6 +682,131 @@ class WebRTCStreamManager:
         
         logger.info("Client disconnected", client_id=client_id)
     
+    async def _start_video_stream(self, client_id: str, data: Dict[str, Any]):
+        """Start WebSocket video streaming (bypasses browser video element issues)."""
+        client = self.clients.get(client_id)
+        if not client:
+            return
+        
+        try:
+            import base64
+            import cv2
+            import asyncio
+            
+            logger.info("🎬 Starting WebSocket video stream", client_id=client_id)
+            
+            # Start background video streaming task
+            async def video_stream_task():
+                frame_count = 0
+                while client_id in self.clients:
+                    try:
+                        # Generate frame from Isaac Sim renderer (fallback to black if unavailable)
+                        if ISAAC_SIM_AVAILABLE and hasattr(self, 'isaac_sim_renderer') and self.isaac_sim_renderer:
+                            frame_data = await self.isaac_sim_renderer.render_frame()
+                        else:
+                            frame_data = np.zeros((1080, 1920, 3), dtype=np.uint8)
+                        
+                        # Encode frame as JPEG
+                        _, buffer = cv2.imencode('.jpg', frame_data, [
+                            cv2.IMWRITE_JPEG_QUALITY, 75,
+                            cv2.IMWRITE_JPEG_OPTIMIZE, 1
+                        ])
+                        
+                        # Convert to base64
+                        frame_base64 = base64.b64encode(buffer).decode('utf-8')
+                        
+                        # Send frame via WebSocket
+                        await self._send_to_client(client_id, {
+                            'type': 'video_frame',
+                            'frame_data': frame_base64,
+                            'frame_count': frame_count,
+                            'timestamp': datetime.utcnow().isoformat()
+                        })
+                        
+                        frame_count += 1
+                        
+                        # Log every 30 frames (every 2 seconds at 15 FPS)
+                        if frame_count % 30 == 0:
+                            logger.info("WebSocket video stream active", 
+                                       client_id=client_id, frame_count=frame_count)
+                        
+                        # 15 FPS (reduced for browser performance)
+                        await asyncio.sleep(1/15)
+                        
+                    except Exception as e:
+                        logger.error("WebSocket video frame error", 
+                                    client_id=client_id, error=str(e))
+                        break
+                
+                logger.info("WebSocket video stream ended", client_id=client_id, total_frames=frame_count)
+            
+            # Start streaming task
+            asyncio.create_task(video_stream_task())
+            
+            # Send confirmation
+            await self._send_to_client(client_id, {
+                'type': 'video_stream_started',
+                'message': 'WebSocket video streaming started',
+                'fps': 30
+            })
+            
+            logger.info("✅ WebSocket video stream started", client_id=client_id)
+            
+        except Exception as e:
+            logger.error("Failed to start WebSocket video stream", 
+                        client_id=client_id, error=str(e))
+            await self._send_to_client(client_id, {
+                'type': 'error',
+                'message': f'Video stream failed: {str(e)}'
+            })
+    
+    async def _start_webrtc_stream(self, client_id: str, data: Dict[str, Any]):
+        """Start WebRTC video streaming for a client."""
+        if not WEBRTC_AVAILABLE:
+            await self._send_to_client(client_id, {
+                'type': 'error',
+                'message': 'WebRTC not available - falling back to WebSocket streaming'
+            })
+            return
+        
+        try:
+            logger.info("🎬 Starting WebRTC video stream", client_id=client_id)
+            
+            # Create WebRTC peer connection
+            pc = RTCPeerConnection(configuration=self.rtc_config)
+            
+            # Store peer connection in client for answer handling
+            client = self.clients.get(client_id)
+            if client:
+                client.peer_connection = pc
+            
+            # Create video track from Isaac Sim
+            video_track = IsaacSimVideoTrack(client_id)
+            pc.addTrack(video_track)
+            
+            # Create offer
+            offer = await pc.createOffer()
+            await pc.setLocalDescription(offer)
+            
+            # Send offer to client
+            await self._send_to_client(client_id, {
+                'type': 'webrtc_offer',
+                'offer': {
+                    'sdp': offer.sdp,
+                    'type': offer.type
+                }
+            })
+            
+            logger.info("✅ WebRTC offer sent to client", client_id=client_id)
+            
+        except Exception as e:
+            logger.error("Failed to start WebRTC stream", 
+                        client_id=client_id, error=str(e))
+            await self._send_to_client(client_id, {
+                'type': 'error',
+                'message': f'WebRTC stream failed: {str(e)}'
+            })
+    
     def get_streaming_metrics(self) -> List[StreamMetrics]:
         """Get current streaming performance metrics."""
         metrics = []
@@ -661,7 +832,15 @@ class WebRTCStreamManager:
             ))
         
         return metrics
-    
+
+    def update_robot_config(self, robot_config: Dict[str, Any]):
+        """Update the robot configuration for video generation."""
+        # Robot config updates handled by isaac_sim_real_renderer directly
+        # if hasattr(self, 'video_frame_generator') and self.video_frame_generator:
+        #     self.video_frame_generator.update_robot_config(robot_config)
+        logger.info("Robot config update (handled by renderer)",
+                   robot_name=robot_config.get('name'))
+
     def get_session_info(self, session_id: str) -> Optional[Dict[str, Any]]:
         """Get streaming info for a specific session."""
         client_ids = self.session_streams.get(session_id, [])

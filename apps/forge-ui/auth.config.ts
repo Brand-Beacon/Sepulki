@@ -1,5 +1,17 @@
-import type { NextAuthConfig } from "next-auth"
+import type { NextAuthConfig, DefaultSession } from "next-auth"
 import type { Provider } from "next-auth/providers"
+
+// Extend NextAuth types to include role
+declare module "next-auth" {
+  interface User {
+    role?: string
+  }
+  interface Session {
+    user: {
+      role?: string
+    } & DefaultSession["user"]
+  }
+}
 
 // Local development OAuth provider
 const localOAuthProvider: Provider = {
@@ -58,10 +70,15 @@ const mockProvider: Provider = {
   async authorize(credentials) {
     // In development, always return the dev user
     if (process.env.NODE_ENV === 'development') {
+      // Ensure email is always a string
+      const email = typeof credentials?.email === 'string' 
+        ? credentials.email 
+        : 'dev@sepulki.com'
+      
       return {
         id: 'dev-smith-001',
         name: 'Development Smith',
-        email: credentials?.email || 'dev@sepulki.com',
+        email: email,
         role: 'OVER_SMITH'
       }
     }

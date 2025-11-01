@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import cookieParser from 'cookie-parser';
 import { Pool } from 'pg';
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
@@ -20,17 +21,35 @@ const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 // JWT secret
 const JWT_SECRET = process.env.JWT_SECRET || 'local-auth-jwt-secret';
 
-// Middleware
+// Middleware - Allow both localhost and 127.0.0.1
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow requests from localhost:3000 or 127.0.0.1:3000
+    const allowedOrigins = [
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+    ];
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Serve login page (mimics Auth.js sign-in page)
 app.get('/auth/signin', (req, res) => {
-  const { callbackUrl = 'http://localhost:3000/dashboard' } = req.query;
+  // Use 127.0.0.1 to match auth service domain for cookie sharing
+  const defaultCallbackUrl = 'http://127.0.0.1:3000/';
+  const { callbackUrl = defaultCallbackUrl } = req.query;
+  // Normalize callback URL to use 127.0.0.1 instead of localhost
+  const normalizedCallbackUrl = typeof callbackUrl === 'string' 
+    ? callbackUrl.replace('localhost', '127.0.0.1')
+    : defaultCallbackUrl;
   
   res.send(`
     <!DOCTYPE html>
@@ -155,7 +174,7 @@ app.get('/auth/signin', (req, res) => {
             <p class="subtitle">Local Authentication Service</p>
             
             <form id="loginForm" action="/auth/signin" method="POST">
-                <input type="hidden" name="callbackUrl" value="${callbackUrl}">
+                <input type="hidden" name="callbackUrl" value="${normalizedCallbackUrl}">
                 
                 <div class="form-group">
                     <label for="email">Email Address</label>
@@ -204,13 +223,14 @@ app.get('/auth/signin', (req, res) => {
                 const formData = new FormData(e.target);
                 
                 try {
+                    const callbackUrl = formData.get('callbackUrl') || 'http://127.0.0.1:3000/';
                     const response = await fetch('/auth/signin', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             email: formData.get('email'),
                             password: formData.get('password'),
-                            callbackUrl: formData.get('callbackUrl')
+                            callbackUrl: callbackUrl.replace('localhost', '127.0.0.1')
                         }),
                         credentials: 'include'
                     });
@@ -218,6 +238,7 @@ app.get('/auth/signin', (req, res) => {
                     const result = await response.json();
                     
                     if (result.success) {
+                        // Ensure callback URL uses 127.0.0.1 for cookie sharing
                         window.location.href = result.callbackUrl;
                     } else {
                         alert('Login failed: ' + result.error);
@@ -287,11 +308,13 @@ app.post('/auth/signin', async (req, res) => {
     }, JWT_SECRET, { expiresIn: '24h' });
 
     // Set session cookie (mimics NextAuth.js)
+    // Note: domain is omitted to allow cookie to work with both localhost and 127.0.0.1
     res.cookie('next-auth.session-token', sessionId, {
       httpOnly: true,
       secure: false, // true in production
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000
+      maxAge: 24 * 60 * 60 * 1000,
+      path: '/' // Explicitly set path
     });
 
     // Update last login (same as production)
@@ -300,9 +323,14 @@ app.post('/auth/signin', async (req, res) => {
       [user.id]
     );
 
+    // Use 127.0.0.1 for callback URL to match auth service domain for cookie sharing
+    const defaultCallbackUrl = callbackUrl || 'http://127.0.0.1:3000/';
+    // Normalize callback URL to use 127.0.0.1 instead of localhost for cookie compatibility
+    const normalizedCallbackUrl = defaultCallbackUrl.replace('localhost', '127.0.0.1');
+    
     res.json({ 
       success: true, 
-      callbackUrl: callbackUrl || 'http://localhost:3000/dashboard',
+      callbackUrl: normalizedCallbackUrl,
       token // For GraphQL API calls
     });
 

@@ -49,7 +49,7 @@ export const renderWithAuth = (
   const { smith = mockSmith, ...renderOptions } = options;
 
   const Wrapper = ({ children }: { children: React.ReactNode }) =>
-    React.createElement(MockAuthProvider, { smith }, children);
+    React.createElement(MockAuthProvider, { smith, children });
 
   return render(ui, { wrapper: Wrapper, ...renderOptions });
 };

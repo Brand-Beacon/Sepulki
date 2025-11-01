@@ -6,6 +6,7 @@ import { AuthProvider } from "@/components/AuthProvider";
 import { SmithProfile } from "@/components/SmithProfile";
 import { ProtectedNavigation, AuthenticationButton } from "@/components/ProtectedNavigation";
 import { DemoModeProvider } from "@/components/DemoModeProvider";
+import { ApolloProviderWrapper } from "@/components/ApolloProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -22,16 +23,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <AuthProvider>
-          <DemoModeProvider>
-            <div className="min-h-screen bg-gray-50">
+        <ApolloProviderWrapper>
+          <AuthProvider>
+            <DemoModeProvider>
+              <div className="min-h-screen bg-gray-50">
             <nav className="bg-white shadow-sm">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex justify-between h-16">
                   <div className="flex">
                     <div className="flex-shrink-0 flex items-center">
                       <Link href="/" className="text-2xl font-bold text-orange-600">
-                        🔥 Sepulki
+                        Sepulki
                       </Link>
                     </div>
                     <ProtectedNavigation />
@@ -51,9 +53,10 @@ export default function RootLayout({
                 </p>
               </div>
             </footer>
-          </div>
-          </DemoModeProvider>
-        </AuthProvider>
+              </div>
+            </DemoModeProvider>
+          </AuthProvider>
+        </ApolloProviderWrapper>
       </body>
     </html>
   );

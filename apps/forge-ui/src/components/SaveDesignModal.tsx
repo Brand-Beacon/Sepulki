@@ -71,7 +71,7 @@ export function SaveDesignModal({
         }
       };
 
-      console.log('🔨 Forging Sepulka with input:', forgeInput);
+      console.log('Forging Sepulka with input:', forgeInput);
 
       const result = await forgeSepulka(forgeInput);
 
@@ -86,7 +86,7 @@ export function SaveDesignModal({
         return;
       }
 
-      console.log('✅ Sepulka forged successfully:', result.sepulka);
+      console.log('Sepulka forged successfully:', result.sepulka);
 
       // Success! Reset form and notify parent
       setFormData({ name: '', description: '' });
@@ -94,7 +94,7 @@ export function SaveDesignModal({
       onClose();
 
     } catch (error) {
-      console.error('❌ Failed to forge Sepulka:', error);
+      console.error('Failed to forge Sepulka:', error);
       setError(error instanceof Error ? error.message : 'Failed to save design');
     } finally {
       setSaving(false);
@@ -108,7 +108,7 @@ export function SaveDesignModal({
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold text-gray-900">🔥 Forge New Sepulka</h2>
+            <h2 className="text-2xl font-bold text-gray-900">Forge New Sepulka</h2>
             <button
               onClick={onClose}
               className="text-gray-400 hover:text-gray-600"
@@ -223,7 +223,7 @@ export function SaveDesignModal({
                   </>
                 ) : (
                   <>
-                    🔥 Forge Sepulka
+                    Forge Sepulka
                   </>
                 )}
               </button>

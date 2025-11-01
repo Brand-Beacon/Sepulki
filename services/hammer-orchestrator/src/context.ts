@@ -45,10 +45,18 @@ export async function createContext({ token }: { token?: string }): Promise<Cont
     let sessionId: string;
 
     // Check if this is a mock development token (only in local development)
-    const isLocalDev = (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev') && 
-                      (process.env.DATABASE_URL?.includes('localhost') || process.env.DATABASE_URL?.includes('127.0.0.1'));
+    // Be more lenient: allow if NODE_ENV is undefined (common in dev), or if explicitly set to development
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isLocalDev = !isProduction && (
+      !process.env.NODE_ENV || 
+      process.env.NODE_ENV === 'development' || 
+      process.env.NODE_ENV === 'dev' ||
+      process.env.DATABASE_URL?.includes('localhost') || 
+      process.env.DATABASE_URL?.includes('127.0.0.1')
+    );
     
-    if (isLocalDev && token.endsWith('.mock-signature-for-development')) {
+    // If token has mock signature, treat it as mock (but only if not in production)
+    if (!isProduction && token.endsWith('.mock-signature-for-development')) {
       // Parse mock JWT token (development only)
       const parts = token.split('.');
       if (parts.length === 3) {
@@ -71,15 +79,61 @@ export async function createContext({ token }: { token?: string }): Promise<Cont
     smithId = payload.sub as string;
     sessionId = payload.sessionId as string;
 
-    // For development mock tokens, use fallback mock smith data
+    // For development mock tokens, try to load smith from database first, then fallback to mock
     if (isLocalDev && sessionId === 'mock-session-001') {
-      // Create mock smith and session for development
+      // Try to load smith from database if we have a real user ID
+      try {
+        const smithQuery = await db.query(
+          'SELECT * FROM smiths WHERE id = $1 AND is_active = true',
+          [smithId]
+        );
+        
+        if (smithQuery.rows.length > 0) {
+          // Found smith in database - use real smith data
+          const dbSmith = smithQuery.rows[0];
+          
+          // Get permissions from database or use defaults based on role
+          const permissions = dbSmith.permissions || [];
+          
+          const mockSession: AuthSession = {
+            smithId: smithId,
+            token: 'mock-token-for-development',
+            refreshToken: 'mock-refresh-token',
+            expiresAt: new Date(payload.exp * 1000),
+            permissions: permissions,
+            role: dbSmith.role
+          };
+
+          console.log('✅ Using database smith for development:', dbSmith.email);
+
+          return {
+            db,
+            redis,
+            smith: dbSmith as Smith,
+            session: mockSession,
+            dataloaders
+          };
+        }
+      } catch (dbError) {
+        console.warn('Could not load smith from database, using mock:', dbError);
+      }
+      
+      // Fallback to mock smith data if database lookup fails
       const mockSmith: Smith = {
         id: smithId,
         name: payload.name || 'Development Smith',
         email: payload.email || 'dev@sepulki.com',
         role: payload.role || SmithRole.OVER_SMITH,
-        permissions: [Permission.VIEW_CATALOG, Permission.FORGE_SEPULKA, Permission.CAST_INGOT, Permission.TEMPER_INGOT, Permission.QUENCH_TO_FLEET],
+        permissions: [
+          Permission.VIEW_CATALOG, 
+          Permission.FORGE_SEPULKA, 
+          Permission.CAST_INGOT, 
+          Permission.TEMPER_INGOT, 
+          Permission.QUENCH_TO_FLEET,
+          Permission.VIEW_FLEET, // Add VIEW_FLEET permission
+          Permission.VIEW_ROBOTS,
+          Permission.VIEW_TASKS
+        ],
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
