@@ -45,10 +45,18 @@ export async function createContext({ token }: { token?: string }): Promise<Cont
     let sessionId: string;
 
     // Check if this is a mock development token (only in local development)
-    const isLocalDev = (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'dev') && 
-                      (process.env.DATABASE_URL?.includes('localhost') || process.env.DATABASE_URL?.includes('127.0.0.1'));
+    // Be more lenient: allow if NODE_ENV is undefined (common in dev), or if explicitly set to development
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isLocalDev = !isProduction && (
+      !process.env.NODE_ENV || 
+      process.env.NODE_ENV === 'development' || 
+      process.env.NODE_ENV === 'dev' ||
+      process.env.DATABASE_URL?.includes('localhost') || 
+      process.env.DATABASE_URL?.includes('127.0.0.1')
+    );
     
-    if (isLocalDev && token.endsWith('.mock-signature-for-development')) {
+    // If token has mock signature, treat it as mock (but only if not in production)
+    if (!isProduction && token.endsWith('.mock-signature-for-development')) {
       // Parse mock JWT token (development only)
       const parts = token.split('.');
       if (parts.length === 3) {
