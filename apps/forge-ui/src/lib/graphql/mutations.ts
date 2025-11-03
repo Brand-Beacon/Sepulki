@@ -1,115 +1,57 @@
 import { gql } from '@apollo/client'
 
-// Upload Mutations
-export const UPLOAD_PROGRAM_MUTATION = gql`
-  mutation UploadProgram($robotId: ID, $fleetId: ID, $file: Upload!) {
-    uploadProgram(robotId: $robotId, fleetId: $fleetId, file: $file) {
-      success
-      taskId
-      fileId
-      fileName
-      robots {
-        id
-        name
-        status
-        batteryLevel
-      }
-      errors {
-        code
-        message
-      }
-    }
-  }
-`
-
-export const UPLOAD_ROUTE_MUTATION = gql`
-  mutation UploadRoute($robotId: ID, $fleetId: ID, $file: Upload!) {
-    uploadRoute(robotId: $robotId, fleetId: $fleetId, file: $file) {
-      success
-      taskId
-      fileId
-      fileName
-      route {
-        id
-        name
-        waypoints {
-          id
-          sequence
-          position {
-            lat
-            lng
-            alt
-          }
-        }
-      }
-      robots {
-        id
-        name
-        status
-        batteryLevel
-      }
-      errors {
-        code
-        message
-      }
-    }
-  }
-`
-
-// Task Mutations
-export const DISPATCH_TASK_MUTATION = gql`
-  mutation DispatchTask($fleetId: ID!, $input: TaskInput!) {
-    dispatchTask(fleetId: $fleetId, input: $input) {
-      task {
-        id
-        name
-        description
-        type
-        status
-        priority
-      }
-      assignments {
-        robotId
-        estimatedDuration
-        confidence
-      }
-      errors {
-        code
-        message
-      }
-    }
-  }
-`
-
-export const CANCEL_TASK_MUTATION = gql`
-  mutation CancelTask($taskId: ID!) {
-    cancelTask(taskId: $taskId) {
+// Fleet Location Mutations
+export const UPDATE_FLEET_LOCATION_MUTATION = gql`
+  mutation UpdateFleetLocation($fleetId: ID!, $coordinates: CoordinatesInput!) {
+    updateFleetLocation(fleetId: $fleetId, coordinates: $coordinates) {
       id
       name
-      status
+      locus {
+        id
+        name
+        coordinates {
+          latitude
+          longitude
+          altitude
+        }
+      }
     }
   }
 `
 
-// Design Mutations
-export const FORGE_SEPULKA_MUTATION = gql`
-  mutation ForgeSepulka($input: ForgeInput!) {
-    forgeSepulka(input: $input) {
-      sepulka {
+export const UPDATE_ROBOT_LOCATION_MUTATION = gql`
+  mutation UpdateRobotLocation($robotId: ID!, $coordinates: CoordinatesInput!) {
+    updateRobotLocation(robotId: $robotId, coordinates: $coordinates) {
+      id
+      name
+      pose {
+        position {
+          latitude
+          longitude
+          altitude
+        }
+        timestamp
+      }
+    }
+  }
+`
+
+// Factory Floor Mutations
+export const CREATE_FACTORY_FLOOR_MUTATION = gql`
+  mutation CreateFactoryFloor($input: FactoryFloorInput!, $blueprintFile: Upload!) {
+    createFactoryFloor(input: $input, blueprintFile: $blueprintFile) {
+      factoryFloor {
         id
         name
         description
-        version
-        status
-        pattern {
-          id
-          name
-        }
-        alloys {
-          id
-          name
-          type
-        }
+        blueprintUrl
+        blueprintType
+        widthMeters
+        heightMeters
+        scaleFactor
+        originX
+        originY
+        createdAt
       }
       errors {
         code
@@ -120,35 +62,72 @@ export const FORGE_SEPULKA_MUTATION = gql`
   }
 `
 
-export const CAST_INGOT_MUTATION = gql`
-  mutation CastIngot($sepulkaId: ID!) {
-    castIngot(sepulkaId: $sepulkaId) {
-      ingot {
-        id
-        sepulkaId
-        status
-      }
-      errors {
-        code
-        message
-      }
-    }
-  }
-`
-
-export const QUENCH_TO_FLEET_MUTATION = gql`
-  mutation QuenchToFleet($ingotId: ID!, $fleetId: ID!, $rolloutPercent: Int) {
-    quenchToFleet(ingotId: $ingotId, fleetId: $fleetId, rolloutPercent: $rolloutPercent) {
-      robots {
+export const UPDATE_FACTORY_FLOOR_MUTATION = gql`
+  mutation UpdateFactoryFloor($id: ID!, $input: UpdateFactoryFloorInput, $blueprintFile: Upload) {
+    updateFactoryFloor(id: $id, input: $input, blueprintFile: $blueprintFile) {
+      factoryFloor {
         id
         name
-        status
+        description
+        blueprintUrl
+        blueprintType
+        widthMeters
+        heightMeters
+        scaleFactor
+        originX
+        originY
       }
       errors {
         code
         message
+        field
       }
     }
   }
 `
 
+export const DELETE_FACTORY_FLOOR_MUTATION = gql`
+  mutation DeleteFactoryFloor($id: ID!) {
+    deleteFactoryFloor(id: $id)
+  }
+`
+
+export const ASSIGN_ROBOT_TO_FLOOR_MUTATION = gql`
+  mutation AssignRobotToFloor($robotId: ID!, $floorId: ID!, $position: FloorPositionInput) {
+    assignRobotToFloor(robotId: $robotId, floorId: $floorId, position: $position) {
+      id
+      name
+      factoryFloor {
+        id
+        name
+      }
+      floorPositionX
+      floorPositionY
+      floorPositionTheta
+      floorRotationDegrees
+    }
+  }
+`
+
+export const UPDATE_ROBOT_FLOOR_POSITION_MUTATION = gql`
+  mutation UpdateRobotFloorPosition($robotId: ID!, $position: FloorPositionInput!) {
+    updateRobotFloorPosition(robotId: $robotId, position: $position) {
+      id
+      name
+      floorPositionX
+      floorPositionY
+      floorPositionTheta
+      floorRotationDegrees
+    }
+  }
+`
+
+export const UPDATE_ROBOT_MOBILITY_MUTATION = gql`
+  mutation UpdateRobotMobility($robotId: ID!, $isMobile: Boolean!) {
+    updateRobotMobility(robotId: $robotId, isMobile: $isMobile) {
+      id
+      name
+      isMobile
+    }
+  }
+`

@@ -236,6 +236,12 @@ CREATE TABLE robots (
   last_pose JSONB, -- {position, orientation, jointPositions, timestamp}
   battery_level FLOAT CHECK (battery_level >= 0 AND battery_level <= 100),
   health_score FLOAT CHECK (health_score >= 0 AND health_score <= 100),
+  factory_floor_id UUID REFERENCES factory_floors(id) ON DELETE SET NULL,
+  floor_position_x FLOAT, -- Position on floor in meters (local coordinate system)
+  floor_position_y FLOAT, -- Position on floor in meters
+  floor_position_theta FLOAT DEFAULT 0, -- Orientation in radians
+  is_mobile BOOLEAN DEFAULT NULL, -- NULL = auto-detect from pattern, TRUE/FALSE = manual override
+  floor_rotation_degrees FLOAT DEFAULT 0, -- Rotation of robot icon on floor for display
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -275,6 +281,23 @@ CREATE TABLE runs (
   completed_at TIMESTAMP WITH TIME ZONE,
   metrics JSONB,
   logs TEXT[] DEFAULT ARRAY[]::TEXT[],
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Factory Floors
+CREATE TABLE factory_floors (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  blueprint_url TEXT, -- URL to uploaded blueprint image/PDF (stored via FileStorageService)
+  blueprint_type VARCHAR(50), -- 'IMAGE', 'PDF', 'CAD' (future)
+  width_meters FLOAT NOT NULL, -- Physical width of floor in meters
+  height_meters FLOAT NOT NULL, -- Physical height of floor in meters
+  scale_factor FLOAT NOT NULL, -- Pixels-to-meters conversion
+  origin_x FLOAT DEFAULT 0, -- X origin in blueprint pixels
+  origin_y FLOAT DEFAULT 0, -- Y origin in blueprint pixels
+  created_by UUID NOT NULL REFERENCES smiths(id),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -335,9 +358,13 @@ CREATE INDEX idx_ingots_sepulka_id ON ingots(sepulka_id);
 CREATE INDEX idx_ingots_status ON ingots(status);
 CREATE INDEX idx_ingots_build_hash ON ingots(build_hash);
 
+CREATE INDEX idx_factory_floors_created_by ON factory_floors(created_by);
+CREATE INDEX idx_factory_floors_created_at ON factory_floors(created_at);
+
 CREATE INDEX idx_robots_fleet_id ON robots(fleet_id);
 CREATE INDEX idx_robots_status ON robots(status);
 CREATE INDEX idx_robots_last_seen ON robots(last_seen);
+CREATE INDEX idx_robots_factory_floor_id ON robots(factory_floor_id);
 
 CREATE INDEX idx_tasks_status ON tasks(status);
 CREATE INDEX idx_tasks_priority ON tasks(priority);
@@ -356,6 +383,9 @@ CREATE INDEX idx_policy_violations_created_at ON policy_violations(created_at);
 
 CREATE INDEX idx_audit_stamps_entity ON audit_stamps(entity_type, entity_id);
 CREATE INDEX idx_audit_stamps_timestamp ON audit_stamps(timestamp);
+
+CREATE INDEX idx_factory_floors_created_by ON factory_floors(created_by);
+CREATE INDEX idx_factory_floors_created_at ON factory_floors(created_at);
 
 -- Create triggers for updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -387,6 +417,8 @@ CREATE TRIGGER update_tasks_updated_at BEFORE UPDATE ON tasks
 CREATE TRIGGER update_runs_updated_at BEFORE UPDATE ON runs 
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 CREATE TRIGGER update_edicts_updated_at BEFORE UPDATE ON edicts 
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_factory_floors_updated_at BEFORE UPDATE ON factory_floors 
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Seed data

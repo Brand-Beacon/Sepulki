@@ -68,14 +68,18 @@ export default function SignInPage() {
                   const password = formData.get('password') as string;
                   
                   try {
-                    const authUrl = env.localAuthUrl || 'http://127.0.0.1:4446';
+                    // Use same hostname as current origin to ensure cookie sharing
+                    const currentOrigin = window.location.origin
+                    const hostname = window.location.hostname
+                    // Use same hostname for auth service to ensure cookies work
+                    const authUrl = `http://${hostname}:4446`
                     const response = await fetch(`${authUrl}/auth/signin`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
                         email,
                         password,
-                        callbackUrl: `${window.location.origin}/`
+                        callbackUrl: `${currentOrigin}/`
                       }),
                       credentials: 'include'
                     });
@@ -83,8 +87,16 @@ export default function SignInPage() {
                     const result = await response.json();
                     
                     if (result.success) {
-                      // Reload to get new session
-                      window.location.href = result.callbackUrl || '/';
+                      // Reload to get new session - use current origin
+                      const callbackUrl = result.callbackUrl || '/'
+                      const redirectUrl = callbackUrl.startsWith('http')
+                        ? callbackUrl.replace(/http:\/\/(127\.0\.0\.1|localhost):3000/, currentOrigin)
+                        : `${currentOrigin}${callbackUrl.startsWith('/') ? callbackUrl : '/'}`
+                      
+                      // Wait a moment for cookie to be set
+                      setTimeout(() => {
+                        window.location.href = redirectUrl
+                      }, 200)
                     } else {
                       alert('Sign in failed: ' + (result.error || 'Invalid credentials'));
                     }

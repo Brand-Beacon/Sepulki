@@ -7,15 +7,44 @@ import { useQuery } from '@apollo/client/react'
 import { FLEET_QUERY } from '@/lib/graphql/queries'
 import { Loader2, MapPin, ArrowLeft } from 'lucide-react'
 import Link from 'next/link'
+import { useHasPermission } from '@/hooks/useHasPermission'
+import { Permission } from '@sepulki/shared-types'
+import { LocationModal } from '@/components/LocationModal'
+import { useMutation } from '@apollo/client/react'
+import { UPDATE_FLEET_LOCATION_MUTATION, UPDATE_ROBOT_LOCATION_MUTATION } from '@/lib/graphql/mutations'
+import { useState } from 'react'
 
 function FleetMapPageContent() {
   const params = useParams()
   const router = useRouter()
   const fleetId = params.id as string
+  const hasManageFleetPermission = useHasPermission(Permission.MANAGE_FLEET)
+  const [selectedEntityForEdit, setSelectedEntityForEdit] = useState<{
+    id: string
+    name: string
+    type: 'fleet' | 'robot'
+    coordinates?: { latitude: number; longitude: number }
+  } | null>(null)
 
   const { data, loading, error } = useQuery(FLEET_QUERY, {
     variables: { id: fleetId },
     fetchPolicy: 'cache-and-network'
+  })
+
+  const [updateFleetLocation] = useMutation(UPDATE_FLEET_LOCATION_MUTATION, {
+    refetchQueries: [{ query: FLEET_QUERY, variables: { id: fleetId } }],
+    awaitRefetchQueries: true,
+    onError: (error) => {
+      console.error('Failed to update fleet location:', error)
+    }
+  })
+
+  const [updateRobotLocation] = useMutation(UPDATE_ROBOT_LOCATION_MUTATION, {
+    refetchQueries: [{ query: FLEET_QUERY, variables: { id: fleetId } }],
+    awaitRefetchQueries: true,
+    onError: (error) => {
+      console.error('Failed to update robot location:', error)
+    }
   })
 
   if (loading) {
@@ -43,6 +72,73 @@ function FleetMapPageContent() {
   const fleet = (data && typeof data === 'object' && 'fleet' in data) 
     ? (data as { fleet?: any }).fleet 
     : undefined
+
+  const handleFleetClick = (fleetId: string, coordinates: { latitude: number; longitude: number }) => {
+    if (!hasManageFleetPermission || !fleet) return
+    
+    setSelectedEntityForEdit({
+      id: fleetId,
+      name: fleet.name,
+      type: 'fleet',
+      coordinates
+    })
+  }
+
+  const handleRobotClick = async (robotId: string, coordinates: { latitude: number; longitude: number }) => {
+    if (!hasManageFleetPermission || !fleet) return
+    
+    try {
+      await updateRobotLocation({
+        variables: {
+          robotId: robotId,
+          coordinates: {
+            latitude: coordinates.latitude,
+            longitude: coordinates.longitude,
+            altitude: coordinates.altitude
+          }
+        }
+      })
+      // Location will be updated via refetch
+    } catch (error) {
+      console.error('Failed to update robot location:', error)
+      throw error
+    }
+  }
+
+  const handleLocationUpdate = async (coordinates: { latitude: number; longitude: number }) => {
+    if (!selectedEntityForEdit) return
+
+    try {
+      if (selectedEntityForEdit.type === 'fleet') {
+        await updateFleetLocation({
+          variables: {
+            fleetId: selectedEntityForEdit.id,
+            coordinates: {
+              latitude: coordinates.latitude,
+              longitude: coordinates.longitude,
+              altitude: coordinates.altitude
+            }
+          }
+        })
+      } else if (selectedEntityForEdit.type === 'robot') {
+        await updateRobotLocation({
+          variables: {
+            robotId: selectedEntityForEdit.id,
+            coordinates: {
+              latitude: coordinates.latitude,
+              longitude: coordinates.longitude,
+              altitude: coordinates.altitude
+            }
+          }
+        })
+      }
+      
+      setSelectedEntityForEdit(null)
+    } catch (error) {
+      console.error('Failed to update location:', error)
+      throw error
+    }
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -108,8 +204,31 @@ function FleetMapPageContent() {
         <RobotMap
           fleetId={fleetId}
           height="600px"
+          editable={hasManageFleetPermission}
+          onFleetClick={hasManageFleetPermission ? handleFleetClick : undefined}
+          onRobotClick={hasManageFleetPermission ? handleRobotClick : undefined}
         />
       </div>
+      
+      {selectedEntityForEdit && selectedEntityForEdit.type === 'fleet' && (
+        <LocationModal
+          isOpen={!!selectedEntityForEdit}
+          onClose={() => setSelectedEntityForEdit(null)}
+          entityId={selectedEntityForEdit.id}
+          entityName={selectedEntityForEdit.name}
+          entityType={selectedEntityForEdit.type}
+          currentLocation={selectedEntityForEdit.coordinates}
+          onLocationUpdate={handleLocationUpdate}
+        />
+      )}
+
+      {hasManageFleetPermission && (
+        <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <p className="text-sm text-blue-800">
+            <strong>Edit Mode:</strong> Drag fleet and robot pins to update their locations, or click them to enter coordinates manually
+          </p>
+        </div>
+      )}
 
       <div className="mt-6 bg-white rounded-lg shadow-sm border p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4">Legend</h2>

@@ -91,10 +91,27 @@ async function startServer() {
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB
+      fileSize: 50 * 1024 * 1024, // 50MB (increased for blueprints)
     },
     fileFilter: (req, file, cb) => {
       const validExtensions = ['.json', '.gpx', '.yaml', '.yml']
+      const fileExtension = file.originalname.toLowerCase().substring(file.originalname.lastIndexOf('.'))
+      if (validExtensions.includes(fileExtension)) {
+        cb(null, true)
+      } else {
+        cb(new Error(`Invalid file type. Please upload a ${validExtensions.join(', ')} file.`))
+      }
+    }
+  })
+
+  // Configure multer for blueprint uploads (images/PDF)
+  const blueprintUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 50 * 1024 * 1024, // 50MB
+    },
+    fileFilter: (req, file, cb) => {
+      const validExtensions = ['.png', '.jpg', '.jpeg', '.pdf']
       const fileExtension = file.originalname.toLowerCase().substring(file.originalname.lastIndexOf('.'))
       if (validExtensions.includes(fileExtension)) {
         cb(null, true)
@@ -219,6 +236,160 @@ async function startServer() {
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Upload failed'
+      })
+    }
+  })
+
+  // Blueprint upload endpoint for existing floors (REST for simplicity)
+  app.post('/api/upload/blueprint', blueprintUpload.single('blueprint'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No file provided' })
+      }
+
+      // Get auth token
+      const authHeader = req.headers.authorization
+      const token = authHeader?.replace('Bearer ', '')
+      const context = await createContext({ token })
+      
+      // Require authentication
+      if (!context.smith && !context.session) {
+        return res.status(401).json({ error: 'Authentication required' })
+      }
+
+      const { floorId } = req.query
+      const file = req.file
+
+      // Upload file to storage
+      const uploadResult = await fileStorage.uploadFile(
+        file.buffer,
+        file.originalname,
+        'blueprint',
+        undefined,
+        undefined,
+        floorId as string || undefined
+      )
+
+      res.json({
+        success: true,
+        fileId: uploadResult.fileId,
+        fileName: uploadResult.fileName,
+        filePath: uploadResult.filePath,
+        url: uploadResult.url,
+      })
+    } catch (error) {
+      console.error('Blueprint upload failed:', error)
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Upload failed'
+      })
+    }
+  })
+
+  // Factory floor creation with blueprint upload endpoint (REST for simplicity)
+  app.post('/api/floors/create', blueprintUpload.single('blueprint'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'Blueprint file is required' })
+      }
+
+      // Get auth token
+      const authHeader = req.headers.authorization
+      const token = authHeader?.replace('Bearer ', '')
+      const context = await createContext({ token })
+      
+      // Require authentication
+      if (!context.smith && !context.session) {
+        return res.status(401).json({ error: 'Authentication required' })
+      }
+
+      const { name, description, widthMeters, heightMeters, scaleFactor, originX, originY } = req.body
+
+      // Validate required fields
+      if (!name || !widthMeters || !heightMeters || !scaleFactor) {
+        return res.status(400).json({ error: 'Name, widthMeters, heightMeters, and scaleFactor are required' })
+      }
+
+      const file = req.file
+
+      // Start transaction
+      const client = await context.db.connect()
+      await client.query('BEGIN')
+
+      try {
+        // Upload file to storage
+        const uploadResult = await fileStorage.uploadFile(
+          file.buffer,
+          file.originalname,
+          'blueprint'
+        )
+
+        // Determine blueprint type from file extension
+        const fileExt = file.originalname.toLowerCase().split('.').pop() || ''
+        let blueprintType: string
+        if (['png', 'jpg', 'jpeg'].includes(fileExt)) {
+          blueprintType = 'IMAGE'
+        } else if (fileExt === 'pdf') {
+          blueprintType = 'PDF'
+        } else {
+          blueprintType = 'IMAGE'
+        }
+
+        // Create factory floor record
+        const insertQuery = `
+          INSERT INTO factory_floors (
+            name, description, blueprint_url, blueprint_type,
+            width_meters, height_meters, scale_factor,
+            origin_x, origin_y, created_by
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          RETURNING *
+        `
+        
+        const floorResult = await client.query(insertQuery, [
+          name,
+          description || null,
+          uploadResult.url,
+          blueprintType,
+          parseFloat(widthMeters),
+          parseFloat(heightMeters),
+          parseFloat(scaleFactor),
+          originX ? parseFloat(originX) : 0,
+          originY ? parseFloat(originY) : 0,
+          context.smith?.id || context.session?.smithId
+        ])
+
+        await client.query('COMMIT')
+        
+        const factoryFloor = floorResult.rows[0]
+
+        res.json({
+          success: true,
+          factoryFloor: {
+            id: factoryFloor.id,
+            name: factoryFloor.name,
+            description: factoryFloor.description,
+            blueprintUrl: factoryFloor.blueprint_url,
+            blueprintType: factoryFloor.blueprint_type,
+            widthMeters: factoryFloor.width_meters,
+            heightMeters: factoryFloor.height_meters,
+            scaleFactor: factoryFloor.scale_factor,
+            originX: factoryFloor.origin_x,
+            originY: factoryFloor.origin_y,
+            createdAt: factoryFloor.created_at,
+          }
+        })
+      } catch (error) {
+        await client.query('ROLLBACK')
+        throw error
+      } finally {
+        client.release()
+      }
+    } catch (error) {
+      console.error('Factory floor creation failed:', error)
+      res.status(500).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create factory floor'
       })
     }
   })

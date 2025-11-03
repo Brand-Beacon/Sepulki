@@ -308,14 +308,28 @@ app.post('/auth/signin', async (req, res) => {
     }, JWT_SECRET, { expiresIn: '24h' });
 
     // Set session cookie (mimics NextAuth.js)
-    // Note: domain is omitted to allow cookie to work with both localhost and 127.0.0.1
-    res.cookie('next-auth.session-token', sessionId, {
+    // Extract hostname from callback URL to set correct domain
+    let cookieOptions: any = {
       httpOnly: true,
       secure: false, // true in production
       sameSite: 'lax',
       maxAge: 24 * 60 * 60 * 1000,
-      path: '/' // Explicitly set path
-    });
+      path: '/'
+    };
+    
+    // Try to set domain based on callback URL to ensure cookie is accessible
+    try {
+      const callbackUrlObj = new URL(callbackUrl || 'http://localhost:3000/');
+      const hostname = callbackUrlObj.hostname;
+      // Only set domain for localhost/127.0.0.1, not for IP addresses (which don't work with cookies)
+      if (hostname === 'localhost' || hostname === '127.0.0.1') {
+        // Don't set domain - let browser handle it based on origin
+      }
+    } catch (e) {
+      // If URL parsing fails, continue without domain
+    }
+    
+    res.cookie('next-auth.session-token', sessionId, cookieOptions);
 
     // Update last login (same as production)
     await db.query(
@@ -323,10 +337,10 @@ app.post('/auth/signin', async (req, res) => {
       [user.id]
     );
 
-    // Use 127.0.0.1 for callback URL to match auth service domain for cookie sharing
-    const defaultCallbackUrl = callbackUrl || 'http://127.0.0.1:3000/';
-    // Normalize callback URL to use 127.0.0.1 instead of localhost for cookie compatibility
-    const normalizedCallbackUrl = defaultCallbackUrl.replace('localhost', '127.0.0.1');
+    // Use the provided callback URL or default to origin-based callback
+    // Don't normalize - use the exact callback URL provided to match cookie domain
+    const defaultCallbackUrl = callbackUrl || 'http://localhost:3000/';
+    const normalizedCallbackUrl = defaultCallbackUrl;
     
     res.json({ 
       success: true, 

@@ -18,6 +18,12 @@ const navigationItems: NavigationItem[] = [
     minRole: 'SMITH',
   },
   {
+    href: '/floors',
+    label: 'Factory Floors',
+    requiresAuth: true, // Requires authentication to view factory floors
+    minRole: 'SMITH',
+  },
+  {
     href: '/design/new',
     label: 'Design',
     requiresAuth: false, // Basic robot configuration available to all

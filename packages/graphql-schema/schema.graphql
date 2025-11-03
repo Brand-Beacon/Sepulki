@@ -84,6 +84,12 @@ type Robot {
   batteryLevel: Float
   healthScore: Float
   streamUrl: String
+  factoryFloor: FactoryFloor
+  floorPositionX: Float
+  floorPositionY: Float
+  floorPositionTheta: Float
+  isMobile: Boolean
+  floorRotationDegrees: Float
 }
 
 type Task {
@@ -261,6 +267,22 @@ type PolicyBreach {
   timestamp: DateTime!
 }
 
+type FactoryFloor {
+  id: ID!
+  name: String!
+  description: String
+  blueprintUrl: String
+  blueprintType: BlueprintType
+  widthMeters: Float!
+  heightMeters: Float!
+  scaleFactor: Float!
+  originX: Float!
+  originY: Float!
+  robots: [Robot!]!
+  createdAt: DateTime!
+  createdBy: Smith!
+}
+
 # Enums
 enum PatternCategory {
   INDUSTRIAL_ARM
@@ -398,6 +420,12 @@ enum EdictSeverity {
   CRITICAL
 }
 
+enum BlueprintType {
+  IMAGE
+  PDF
+  CAD
+}
+
 # Input Types
 input ForgeInput {
   name: String!
@@ -425,6 +453,39 @@ input TemperGoal {
   metric: String!
   target: String!
   weight: Float = 1.0
+}
+
+input CoordinatesInput {
+  latitude: Float!
+  longitude: Float!
+  altitude: Float
+}
+
+input FactoryFloorInput {
+  name: String!
+  description: String
+  widthMeters: Float!
+  heightMeters: Float!
+  scaleFactor: Float!
+  originX: Float = 0
+  originY: Float = 0
+}
+
+input UpdateFactoryFloorInput {
+  name: String
+  description: String
+  widthMeters: Float
+  heightMeters: Float
+  scaleFactor: Float
+  originX: Float
+  originY: Float
+}
+
+input FloorPositionInput {
+  positionX: Float!
+  positionY: Float!
+  positionTheta: Float = 0
+  rotationDegrees: Float = 0
 }
 
 # Filter Input Types
@@ -525,6 +586,11 @@ type UploadRoutePayload {
   errors: [Error!]
 }
 
+type FactoryFloorPayload {
+  factoryFloor: FactoryFloor
+  errors: [Error!]
+}
+
 type Route {
   id: ID!
   name: String!
@@ -580,6 +646,10 @@ type Query {
   # Telemetry
   bellows(fleetId: ID!, timeRange: TimeRange!): BellowsStream!
   
+  # Factory Floors
+  factoryFloors(limit: Int, offset: Int): [FactoryFloor!]!
+  factoryFloor(id: ID!): FactoryFloor
+  
   # Policy
   edicts(type: EdictType, active: Boolean, limit: Int, offset: Int): [Edict!]!
 }
@@ -610,6 +680,37 @@ type Mutation {
   # Fleet Management
   updateRobotStatus(robotId: ID!, status: RobotStatus!): Robot
   emergencyStop(fleetId: ID!): Fleet
+  updateFleetLocation(fleetId: ID!, coordinates: CoordinatesInput!): Fleet!
+  updateRobotLocation(robotId: ID!, coordinates: CoordinatesInput!): Robot!
+  
+  # Factory Floor Management
+  createFactoryFloor(
+    input: FactoryFloorInput!
+    blueprintFile: Upload!
+  ): FactoryFloorPayload!
+  updateFactoryFloor(
+    id: ID!
+    input: UpdateFactoryFloorInput
+    blueprintFile: Upload
+  ): FactoryFloorPayload!
+  
+  deleteFactoryFloor(id: ID!): Boolean!
+  
+  assignRobotToFloor(
+    robotId: ID!
+    floorId: ID!
+    position: FloorPositionInput
+  ): Robot!
+  
+  updateRobotFloorPosition(
+    robotId: ID!
+    position: FloorPositionInput!
+  ): Robot!
+  
+  updateRobotMobility(
+    robotId: ID!
+    isMobile: Boolean!
+  ): Robot!
   
   # Policy
   addEdict(input: EdictInput!): Edict

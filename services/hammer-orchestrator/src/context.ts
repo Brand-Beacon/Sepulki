@@ -226,6 +226,11 @@ export async function requirePermission(
 ): Promise<{ smith: Smith; session: AuthSession }> {
   const { smith, session } = await requireAuth(context);
   
+  // Admin users have all permissions
+  if (smith.role === SmithRole.ADMIN) {
+    return { smith, session };
+  }
+  
   if (!session.permissions.includes(permission)) {
     throw new Error(`Permission denied: ${permission} required`);
   }

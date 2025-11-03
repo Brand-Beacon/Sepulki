@@ -49,13 +49,13 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
         setRobotStatuses((prev) => {
           // Merge with previous state to avoid unnecessary re-renders
           const statuses: Record<string, any> = { ...prev }
-          bellowsData.bellowsStream.metrics.forEach((metric: any) => {
-            statuses[metric.robotId] = {
-              batteryLevel: metric.batteryLevel,
-              healthScore: metric.healthScore,
-              lastSeen: metric.timestamp,
-            }
-          })
+        bellowsData.bellowsStream.metrics.forEach((metric: any) => {
+          statuses[metric.robotId] = {
+            batteryLevel: metric.batteryLevel,
+            healthScore: metric.healthScore,
+            lastSeen: metric.timestamp,
+          }
+        })
           return statuses
         })
       }

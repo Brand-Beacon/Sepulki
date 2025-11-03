@@ -227,3 +227,72 @@ export const SEPULKA_QUERY = gql`
   }
 `
 
+// Factory Floor Queries
+export const FACTORY_FLOORS_QUERY = gql`
+  query FactoryFloors($limit: Int, $offset: Int) {
+    factoryFloors(limit: $limit, offset: $offset) {
+      id
+      name
+      description
+      blueprintUrl
+      blueprintType
+      widthMeters
+      heightMeters
+      scaleFactor
+      originX
+      originY
+      createdAt
+      createdBy {
+        id
+        name
+        email
+      }
+      robots {
+        id
+        name
+        status
+      }
+    }
+  }
+`
+
+export const FACTORY_FLOOR_QUERY = gql`
+  query FactoryFloor($id: ID!) {
+    factoryFloor(id: $id) {
+      id
+      name
+      description
+      blueprintUrl
+      blueprintType
+      widthMeters
+      heightMeters
+      scaleFactor
+      originX
+      originY
+      createdAt
+      createdBy {
+        id
+        name
+        email
+      }
+      robots {
+        id
+        name
+        status
+        batteryLevel
+        healthScore
+        lastSeen
+        floorPositionX
+        floorPositionY
+        floorPositionTheta
+        isMobile
+        floorRotationDegrees
+        factoryFloor {
+          id
+          name
+        }
+      }
+    }
+  }
+`
+

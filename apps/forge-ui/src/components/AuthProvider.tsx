@@ -48,7 +48,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     });
 
     try {
-      const authUrl = env.localAuthUrl || 'http://127.0.0.1:4446'
+      // Use same hostname as current origin for cookie sharing
+      const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
+      const authUrl = `http://${hostname}:4446`
       const fetchPromise = fetch(`${authUrl}/auth/session`, {
         credentials: 'include',
       });

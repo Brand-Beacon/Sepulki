@@ -38,6 +38,27 @@ export interface Robot extends BaseEntity {
   pose?: RobotPose;
   batteryLevel?: number; // 0-100%
   healthScore?: number; // 0-100%
+  factoryFloorId?: string;
+  factoryFloor?: FactoryFloor;
+  floorPositionX?: number; // Position on floor in meters (local coordinate system)
+  floorPositionY?: number; // Position on floor in meters
+  floorPositionTheta?: number; // Orientation in radians
+  isMobile?: boolean | null; // null = auto-detect from pattern, true/false = manual override
+  floorRotationDegrees?: number; // Rotation of robot icon on floor for display
+}
+
+export interface FactoryFloor extends BaseEntity {
+  name: string;
+  description?: string;
+  blueprintUrl?: string;
+  blueprintType?: 'IMAGE' | 'PDF' | 'CAD';
+  widthMeters: number;
+  heightMeters: number;
+  scaleFactor: number;
+  originX: number;
+  originY: number;
+  robots: Robot[];
+  createdBy: string; // Smith ID
 }
 
 export interface Locus extends BaseEntity {

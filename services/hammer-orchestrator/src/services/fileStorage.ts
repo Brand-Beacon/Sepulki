@@ -32,9 +32,10 @@ export class FileStorageService {
   async uploadFile(
     file: File | Buffer,
     fileName: string,
-    fileType: 'program' | 'route',
+    fileType: 'program' | 'route' | 'blueprint',
     robotId?: string,
-    fleetId?: string
+    fleetId?: string,
+    floorId?: string
   ): Promise<FileUploadResult> {
     try {
       // Generate unique file ID
@@ -42,7 +43,13 @@ export class FileStorageService {
       
       // Determine storage path
       let storagePath: string
-      if (robotId) {
+      if (fileType === 'blueprint') {
+        if (floorId) {
+          storagePath = `blueprints/factory_floors/${floorId}/${fileId}/${fileName}`
+        } else {
+          storagePath = `blueprints/uploads/${fileId}/${fileName}`
+        }
+      } else if (robotId) {
         storagePath = `${fileType}s/robots/${robotId}/${fileId}/${fileName}`
       } else if (fleetId) {
         storagePath = `${fileType}s/fleets/${fleetId}/${fileId}/${fileName}`
@@ -68,6 +75,9 @@ export class FileStorageService {
 
       // Write file to disk
       await fs.writeFile(fullPath, fileBuffer)
+
+      // Get content type
+      const contentType = this.getContentType(fileName)
 
       // For now, return a relative URL (can be served via Express static)
       const fileUrl = `/api/files/${storagePath}`
@@ -113,32 +123,77 @@ export class FileStorageService {
       '.yaml': 'application/x-yaml',
       '.yml': 'application/x-yaml',
       '.xml': 'application/xml',
+      '.png': 'image/png',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.pdf': 'application/pdf',
     }
     return contentTypes[ext] || 'application/octet-stream'
   }
 
-  async validateFile(file: File): Promise<{ valid: boolean; error?: string }> {
-    // Validate file type
-    const validExtensions = ['.json', '.gpx', '.yaml', '.yml']
+  async validateFile(
+    file: File, 
+    fileType?: 'program' | 'route' | 'blueprint'
+  ): Promise<{ valid: boolean; error?: string }> {
     const fileExtension = path.extname(file.name).toLowerCase()
     
-    if (!validExtensions.includes(fileExtension)) {
-      return {
-        valid: false,
-        error: `Invalid file type. Please upload a ${validExtensions.join(', ')} file.`,
+    // Validate file type based on fileType parameter
+    if (fileType === 'blueprint') {
+      const validExtensions = ['.png', '.jpg', '.jpeg', '.pdf']
+      if (!validExtensions.includes(fileExtension)) {
+        return {
+          valid: false,
+          error: `Invalid blueprint file type. Please upload a ${validExtensions.join(', ')} file.`,
+        }
       }
-    }
-
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024 // 10MB
-    if (file.size > maxSize) {
-      return {
-        valid: false,
-        error: `File size exceeds ${maxSize / 1024 / 1024}MB limit.`,
+      // Larger size limit for images/PDFs (50MB)
+      const maxSize = 50 * 1024 * 1024 // 50MB
+      if (file.size > maxSize) {
+        return {
+          valid: false,
+          error: `File size exceeds ${maxSize / 1024 / 1024}MB limit.`,
+        }
+      }
+    } else {
+      // Default validation for program/route files
+      const validExtensions = ['.json', '.gpx', '.yaml', '.yml']
+      if (!validExtensions.includes(fileExtension)) {
+        return {
+          valid: false,
+          error: `Invalid file type. Please upload a ${validExtensions.join(', ')} file.`,
+        }
+      }
+      // Smaller size limit for program/route files (10MB)
+      const maxSize = 10 * 1024 * 1024 // 10MB
+      if (file.size > maxSize) {
+        return {
+          valid: false,
+          error: `File size exceeds ${maxSize / 1024 / 1024}MB limit.`,
+        }
       }
     }
 
     return { valid: true }
+  }
+
+  async getImageDimensions(file: File | Buffer): Promise<{ width: number; height: number } | null> {
+    try {
+      // For Node.js/Buffer, we'd need a library like 'sharp' or 'jimp'
+      // For browser File, we can use Image API
+      if (file instanceof File) {
+        // This would need to be handled differently in the resolver
+        // as File objects need to be converted to buffers first
+        // For now, return null and dimensions can be detected client-side
+        return null
+      } else {
+        // For Buffer, we'd need image processing library
+        // Placeholder - would use sharp or jimp in actual implementation
+        return null
+      }
+    } catch (error) {
+      console.error('Failed to get image dimensions:', error)
+      return null
+    }
   }
 
   async parseRouteFile(file: File): Promise<any> {

@@ -7,7 +7,8 @@ import type {
   Fleet, 
   Robot, 
   Task, 
-  Smith 
+  Smith,
+  FactoryFloor
 } from '@sepulki/shared-types';
 
 export function setupDataLoaders(db: Pool) {
@@ -134,6 +135,31 @@ export function setupDataLoaders(db: Pool) {
     return ids.map(id => smithMap.get(id) || null);
   });
 
+  // Factory Floor loaders
+  const factoryFloorLoader = new DataLoader<string, FactoryFloor | null>(async (ids) => {
+    const query = 'SELECT * FROM factory_floors WHERE id = ANY($1)';
+    const result = await db.query(query, [ids]);
+    
+    const floorMap = new Map(result.rows.map(row => [row.id, row]));
+    return ids.map(id => floorMap.get(id) || null);
+  });
+
+  const robotsByFactoryFloorLoader = new DataLoader<string, Robot[]>(async (floorIds) => {
+    const query = 'SELECT * FROM robots WHERE factory_floor_id = ANY($1) ORDER BY name ASC';
+    const result = await db.query(query, [floorIds]);
+    
+    const robotMap = new Map<string, Robot[]>();
+    floorIds.forEach(id => robotMap.set(id, []));
+    
+    result.rows.forEach(row => {
+      const floorRobots = robotMap.get(row.factory_floor_id) || [];
+      floorRobots.push(row);
+      robotMap.set(row.factory_floor_id, floorRobots);
+    });
+    
+    return floorIds.map(id => robotMap.get(id) || []);
+  });
+
   return {
     sepulka: sepulkaLoader,
     alloy: alloyLoader,
@@ -145,5 +171,7 @@ export function setupDataLoaders(db: Pool) {
     task: taskLoader,
     tasksByFleet: tasksByFleetLoader,
     smith: smithLoader,
+    factoryFloor: factoryFloorLoader,
+    robotsByFactoryFloor: robotsByFactoryFloorLoader,
   };
 }

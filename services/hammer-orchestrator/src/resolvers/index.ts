@@ -7,6 +7,7 @@ import { authResolvers } from './auth';
 import { telemetryResolvers } from './telemetry';
 import { uploadResolvers } from './upload';
 import { subscriptionResolvers } from './subscriptions';
+import { factoryFloorResolvers } from './factory-floor';
 import type { Resolvers } from './types';
 
 export const resolvers: Resolvers = {
@@ -21,6 +22,7 @@ export const resolvers: Resolvers = {
     ...fleetResolvers.Query,
     ...taskResolvers.Query,
     ...telemetryResolvers.Query,
+    ...factoryFloorResolvers.Query,
     
     // Stub implementation for edicts (TODO: Implement properly)
     edicts: async () => [],
@@ -33,6 +35,7 @@ export const resolvers: Resolvers = {
     ...taskResolvers.Mutation,
     ...authResolvers.Mutation,
     ...uploadResolvers.Mutation,
+    ...factoryFloorResolvers.Mutation,
     
     // Stub implementations for missing mutations (TODO: Implement properly)
     recallFleet: async () => { throw new Error('recallFleet not yet implemented') },
@@ -57,4 +60,5 @@ export const resolvers: Resolvers = {
   Task: taskResolvers.Task,
   Run: taskResolvers.Run,
   Smith: authResolvers.Smith,
+  FactoryFloor: factoryFloorResolvers.FactoryFloor,
 };
