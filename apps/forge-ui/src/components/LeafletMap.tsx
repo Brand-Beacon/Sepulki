@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useMemo } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, Polyline, useMapEvents } from 'react-leaflet'
-import { Icon as LeafletIcon, LatLng } from 'leaflet'
+import { Icon as LeafletIcon, LatLng, LatLngBounds } from 'leaflet'
 import Link from 'next/link'
 import 'leaflet/dist/leaflet.css'
 
@@ -37,6 +37,62 @@ function MapViewUpdater({ center }: { center: [number, number] }) {
       map.setView(center, map.getZoom())
     }
   }, [center, map])
+  
+  return null
+}
+
+// Component to fit bounds from all fleet and robot locations
+function MapBoundsFitter({ 
+  fleets, 
+  robots, 
+  fleetCenter 
+}: { 
+  fleets?: Array<{ id: string; name: string; locus?: { coordinates?: { latitude?: number; longitude?: number } } }>
+  robots?: Array<{ id: string; position: [number, number] }>
+  fleetCenter?: [number, number]
+}) {
+  const map = useMap()
+  
+  useEffect(() => {
+    const locations: [number, number][] = []
+    
+    // Add fleet locations
+    if (fleets && fleets.length > 0) {
+      fleets.forEach((fleet) => {
+        const coords = fleet.locus?.coordinates
+        if (coords?.latitude != null && coords?.longitude != null) {
+          locations.push([coords.latitude, coords.longitude])
+        }
+      })
+    } else if (fleetCenter) {
+      // Single fleet center
+      locations.push(fleetCenter)
+    }
+    
+    // Add robot positions
+    if (robots && robots.length > 0) {
+      robots.forEach((robot) => {
+        if (robot.position && Array.isArray(robot.position) && robot.position.length === 2) {
+          const [lat, lng] = robot.position
+          if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
+            locations.push([lat, lng])
+          }
+        }
+      })
+    }
+    
+    // Fit bounds if we have multiple locations
+    if (locations.length > 1) {
+      const bounds = new LatLngBounds(locations)
+      map.fitBounds(bounds, { 
+        padding: [50, 50], // Add padding around markers
+        maxZoom: 16 // Don't zoom in too far
+      })
+    } else if (locations.length === 1) {
+      // Single location - center on it with appropriate zoom
+      map.setView(locations[0], 13)
+    }
+  }, [map, fleets, robots, fleetCenter])
   
   return null
 }
@@ -275,7 +331,7 @@ export function LeafletMap({
     return R * c
   }
 
-  // Handle fleet location update
+  // Handle fleet location update (single fleet mode)
   const handleFleetDragEnd = (latlng: LatLng) => {
     if (!fleetId || !onLocationUpdate) return
 
@@ -293,6 +349,49 @@ export function LeafletMap({
       next.set(`fleet-${fleetId}`, {
         target: [latlng.lat, latlng.lng],
         start: fleetCenter || [latlng.lat, latlng.lng],
+        progress: 0,
+        duration,
+        startTime: Date.now()
+      })
+      return next
+    })
+
+    // Set target flag
+    setTargetFlags(prev => {
+      const next = new Map(prev)
+      next.set(`fleet-${fleetId}`, [latlng.lat, latlng.lng])
+      return next
+    })
+
+    // Call update callback
+    onLocationUpdate('fleet', fleetId, newCoords)
+  }
+
+  // Handle fleet location update (multi-fleet mode)
+  const handleFleetDragEndForMultiFleet = (fleetId: string, latlng: LatLng) => {
+    if (!onLocationUpdate) return
+
+    // Find the fleet's current position
+    const fleet = fleets?.find((f: any) => f.id === fleetId)
+    const fleetCoords = fleet?.locus?.coordinates
+    const currentPosition: [number, number] | undefined = fleetCoords?.latitude != null && fleetCoords?.longitude != null
+      ? [fleetCoords.latitude, fleetCoords.longitude]
+      : undefined
+
+    const newCoords = { latitude: latlng.lat, longitude: latlng.lng }
+    
+    // Calculate animation duration (5 m/s for fleet)
+    const distance = currentPosition
+      ? calculateDistance(currentPosition[0], currentPosition[1], latlng.lat, latlng.lng)
+      : 0
+    const duration = Math.max(2000, Math.min(10000, distance / 5 * 1000)) // 5 m/s, 2-10 seconds
+
+    // Add movement animation
+    setActiveMovements(prev => {
+      const next = new Map(prev)
+      next.set(`fleet-${fleetId}`, {
+        target: [latlng.lat, latlng.lng],
+        start: currentPosition || [latlng.lat, latlng.lng],
         progress: 0,
         duration,
         startTime: Date.now()
@@ -410,11 +509,14 @@ export function LeafletMap({
     })
   }
 
+  // Determine if we should use bounds fitting (multiple fleets, or multiple robots, or when fleets prop is provided)
+  const shouldFitBounds = (fleets && fleets.length > 0) || (robots && robots.length > 1)
+  
   return (
     <div className={className} style={{ height }}>
       <MapContainer
         center={center}
-        zoom={fleetCenter ? 16 : 13}
+        zoom={fleetCenter && !shouldFitBounds ? 16 : 13}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
@@ -422,6 +524,16 @@ export function LeafletMap({
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+        
+        {/* Fit bounds if we have multiple fleets or robots */}
+        {shouldFitBounds && (
+          <MapBoundsFitter fleets={fleets} robots={robots} fleetCenter={fleetCenter} />
+        )}
+        
+        {/* Update view when center changes (single fleet mode) */}
+        {!shouldFitBounds && fleetCenter && (
+          <MapViewUpdater center={fleetCenter} />
+        )}
         
         {fleetCenter && (
           <>
@@ -449,7 +561,12 @@ export function LeafletMap({
             return null
           }
 
-          const position: [number, number] = [fleetCoords.latitude, fleetCoords.longitude]
+          // Check for pending update for this fleet (passed from RobotMap)
+          const fleetId = fleet.id
+          const pendingPos = (fleet as any).__pendingPosition
+          const position: [number, number] = pendingPos 
+            ? [pendingPos.lat, pendingPos.lng]
+            : [fleetCoords.latitude, fleetCoords.longitude]
           
           // Create fleet center icon (flag icon)
           const fleetIcon = useMemo(() => {
@@ -470,9 +587,14 @@ export function LeafletMap({
               key={`fleet-${fleet.id}`}
               position={position}
               icon={fleetIcon}
+              draggable={draggable}
               eventHandlers={{
                 click: onFleetClick ? () => {
                   onFleetClick(fleet.id, { latitude: position[0], longitude: position[1] })
+                } : undefined,
+                dragend: draggable && onLocationUpdate ? (e: any) => {
+                  const latlng = e.target.getLatLng()
+                  handleFleetDragEndForMultiFleet(fleet.id, latlng)
                 } : undefined
               }}
             >

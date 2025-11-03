@@ -158,27 +158,34 @@ export function RobotMap({
       if (!isNaN(baseLat) && !isNaN(baseLng) && isFinite(baseLat) && isFinite(baseLng)) {
         // Set fleet center
         setFleetCenter([baseLat, baseLng])
-      
-      // Convert robot poses to GPS coordinates
-      const positions: Record<string, { lat: number; lng: number }> = {}
-      
-      fleetRobots.forEach((robot: any) => {
-        // Robot pose should now have GPS coordinates (latitude, longitude) from GraphQL
-        // Check if pose has valid GPS coordinates
-        const hasValidPose = robot.pose?.position && 
-          typeof robot.pose.position.latitude === 'number' && 
-          typeof robot.pose.position.longitude === 'number' &&
-          !isNaN(robot.pose.position.latitude) &&
-          !isNaN(robot.pose.position.longitude)
         
-        if (hasValidPose) {
-          // Use GPS coordinates directly from GraphQL
-          const lat = robot.pose.position.latitude
-          const lng = robot.pose.position.longitude
+        // Convert robot poses to GPS coordinates
+        const positions: Record<string, { lat: number; lng: number }> = {}
+        
+        fleetRobots.forEach((robot: any) => {
+          // Robot pose should now have GPS coordinates (latitude, longitude) from GraphQL
+          // Check if pose has valid GPS coordinates
+          const hasValidPose = robot.pose?.position && 
+            typeof robot.pose.position.latitude === 'number' && 
+            typeof robot.pose.position.longitude === 'number' &&
+            !isNaN(robot.pose.position.latitude) &&
+            !isNaN(robot.pose.position.longitude)
           
-          // Only set position if coordinates are valid numbers
-          if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
-            positions[robot.id] = { lat, lng }
+          if (hasValidPose) {
+            // Use GPS coordinates directly from GraphQL
+            const lat = robot.pose.position.latitude
+            const lng = robot.pose.position.longitude
+            
+            // Only set position if coordinates are valid numbers
+            if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
+              positions[robot.id] = { lat, lng }
+            } else {
+              // Use fleet center with small random offset for visibility
+              positions[robot.id] = {
+                lat: baseLat + (Math.random() - 0.5) * 0.001,
+                lng: baseLng + (Math.random() - 0.5) * 0.001
+              }
+            }
           } else {
             // Use fleet center with small random offset for visibility
             positions[robot.id] = {
@@ -186,15 +193,8 @@ export function RobotMap({
               lng: baseLng + (Math.random() - 0.5) * 0.001
             }
           }
-        } else {
-          // Use fleet center with small random offset for visibility
-          positions[robot.id] = {
-            lat: baseLat + (Math.random() - 0.5) * 0.001,
-            lng: baseLng + (Math.random() - 0.5) * 0.001
-          }
-        }
-      })
-      
+        })
+        
         setRobotPositions(positions)
       } else {
         // Invalid fleet coordinates - skip setting positions
@@ -212,31 +212,38 @@ export function RobotMap({
         // Validate calculated center coordinates
         if (!isNaN(avgLat) && !isNaN(avgLng) && isFinite(avgLat) && isFinite(avgLng)) {
           setFleetCenter([avgLat, avgLng])
-        
-        // Map each robot to its fleet's location
-        const positions: Record<string, { lat: number; lng: number }> = {}
-        fleetRobots.forEach((robot: any) => {
-          // Find robot's fleet location
-          const robotFleet = fleets.find((f: any) => f.robots?.some((r: any) => r.id === robot.id))
-          const fleetLoc = robotFleet ? fleetLocationMap.get(robotFleet.id) : null
           
-          if (fleetLoc) {
-            // Robot pose should now have GPS coordinates (latitude, longitude) from GraphQL
-            // Check if pose has valid GPS coordinates
-            const hasValidPose = robot.pose?.position && 
-              typeof robot.pose.position.latitude === 'number' && 
-              typeof robot.pose.position.longitude === 'number' &&
-              !isNaN(robot.pose.position.latitude) &&
-              !isNaN(robot.pose.position.longitude)
+          // Map each robot to its fleet's location
+          const positions: Record<string, { lat: number; lng: number }> = {}
+          fleetRobots.forEach((robot: any) => {
+            // Find robot's fleet location
+            const robotFleet = fleets.find((f: any) => f.robots?.some((r: any) => r.id === robot.id))
+            const fleetLoc = robotFleet ? fleetLocationMap.get(robotFleet.id) : null
             
-            if (hasValidPose) {
-              // Use GPS coordinates directly from GraphQL
-              const lat = robot.pose.position.latitude
-              const lng = robot.pose.position.longitude
+            if (fleetLoc) {
+              // Robot pose should now have GPS coordinates (latitude, longitude) from GraphQL
+              // Check if pose has valid GPS coordinates
+              const hasValidPose = robot.pose?.position && 
+                typeof robot.pose.position.latitude === 'number' && 
+                typeof robot.pose.position.longitude === 'number' &&
+                !isNaN(robot.pose.position.latitude) &&
+                !isNaN(robot.pose.position.longitude)
               
-              // Only set position if coordinates are valid numbers
-              if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
-                positions[robot.id] = { lat, lng }
+              if (hasValidPose) {
+                // Use GPS coordinates directly from GraphQL
+                const lat = robot.pose.position.latitude
+                const lng = robot.pose.position.longitude
+                
+                // Only set position if coordinates are valid numbers
+                if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
+                  positions[robot.id] = { lat, lng }
+                } else {
+                  // Use fleet location with small random offset for visibility
+                  positions[robot.id] = {
+                    lat: fleetLoc.lat + (Math.random() - 0.5) * 0.001,
+                    lng: fleetLoc.lng + (Math.random() - 0.5) * 0.001
+                  }
+                }
               } else {
                 // Use fleet location with small random offset for visibility
                 positions[robot.id] = {
@@ -245,21 +252,40 @@ export function RobotMap({
                 }
               }
             } else {
-              // Use fleet location with small random offset for visibility
+              // Fallback to average center if fleet not found
               positions[robot.id] = {
-                lat: fleetLoc.lat + (Math.random() - 0.5) * 0.001,
-                lng: fleetLoc.lng + (Math.random() - 0.5) * 0.001
+                lat: avgLat + (Math.random() - 0.5) * 0.01,
+                lng: avgLng + (Math.random() - 0.5) * 0.01
               }
             }
-          } else {
-            // Fallback to average center if fleet not found
-            positions[robot.id] = {
-              lat: avgLat + (Math.random() - 0.5) * 0.01,
-              lng: avgLng + (Math.random() - 0.5) * 0.01
-            }
-          }
-        })
-        setRobotPositions(positions)
+          })
+          setRobotPositions(positions)
+          
+          // Clear pending fleet updates if the fleet position in the data matches the pending position
+          setPendingUpdates(prev => {
+            const next = new Map(prev)
+            prev.forEach((pendingPos, key) => {
+              if (key.startsWith('fleet-')) {
+                const fleetId = key.replace('fleet-', '')
+                const fleet = fleets.find((f: any) => f.id === fleetId)
+                if (fleet?.locus?.coordinates?.latitude != null && fleet?.locus?.coordinates?.longitude != null) {
+                  const actualLat = fleet.locus.coordinates.latitude
+                  const actualLng = fleet.locus.coordinates.longitude
+                  // If actual position matches pending position (within small tolerance), clear it
+                  const latDiff = Math.abs(actualLat - pendingPos.lat)
+                  const lngDiff = Math.abs(actualLng - pendingPos.lng)
+                  if (latDiff < 0.0001 && lngDiff < 0.0001) {
+                    next.delete(key)
+                  }
+                }
+              }
+            })
+            return next
+          })
+        } else {
+          // Invalid calculated center - skip setting positions
+          console.warn('Invalid calculated fleet center:', avgLat, avgLng)
+        }
       }
     } 
     // Case 3: Fallback if no fleet coordinates available
@@ -373,6 +399,23 @@ export function RobotMap({
     }
   })
 
+  // Enrich fleets with pending positions for multi-fleet mode
+  // MUST be called before any conditional returns
+  const fleetsWithPendingUpdates = useMemo(() => {
+    if (!fleets || fleets.length === 0) return fleets
+    
+    return fleets.map((f: any) => {
+      const pendingPos = pendingUpdates.get(`fleet-${f.id}`)
+      if (pendingPos) {
+        return {
+          ...f,
+          __pendingPosition: pendingPos
+        }
+      }
+      return f
+    })
+  }, [fleets, pendingUpdates])
+
   if (typeof window === 'undefined') {
     return (
       <div className={`bg-gray-100 rounded-lg flex items-center justify-center ${className}`} style={{ height }}>
@@ -483,13 +526,21 @@ export function RobotMap({
           }
         })
         
-        // Force recalculation by updating fleet center state
-        // This will trigger the useEffect that recalculates positions
-        if (result.data?.updateFleetLocation?.locus?.coordinates) {
+        // Force recalculation by updating fleet center state (for single-fleet mode)
+        if (fleetId && result.data?.updateFleetLocation?.locus?.coordinates) {
           const newCoords = result.data.updateFleetLocation.locus.coordinates
           setFleetCenter([newCoords.latitude, newCoords.longitude])
-          
-          // Clear pending update after confirming data is updated
+        }
+        
+        // For multi-fleet mode, keep pending update until the refetched fleets array reflects the change
+        // The pending update will be cleared when the fleets array updates with the new position
+        // Check if the position in the refetched data matches the pending position
+        if (fleets && fleets.length > 0) {
+          // Don't clear immediately - let the useEffect clear it when fleets array updates
+          // The refetch should update the fleets array, and when it does, the pending update
+          // will be cleared by comparing the fleet's actual position with the pending position
+        } else if (fleetId && result.data?.updateFleetLocation?.locus?.coordinates) {
+          // Single-fleet mode: clear immediately after confirming data is updated
           setPendingUpdates(prev => {
             const next = new Map(prev)
             next.delete(pendingKey)
@@ -546,7 +597,7 @@ export function RobotMap({
         robots={robotMarkers}
         fleetCenter={fleetCenterCoords}
         fleetId={fleetId}
-        fleets={fleets}
+        fleets={fleetsWithPendingUpdates}
         height={height}
         draggable={editable}
         onLocationUpdate={handleLocationUpdate}

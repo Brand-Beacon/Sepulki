@@ -2,12 +2,15 @@
 
 import { useParams, useRouter } from 'next/navigation'
 import { RouteGuard } from '@/components/RouteGuard'
-import { useQuery, useSubscription } from '@apollo/client/react'
+import { useQuery, useSubscription, useMutation } from '@apollo/client/react'
 import { FLEET_QUERY } from '@/lib/graphql/queries'
 import { BELLOWS_STREAM_SUBSCRIPTION } from '@/lib/graphql/subscriptions'
+import { UPDATE_ROBOT_LOCATION_MUTATION } from '@/lib/graphql/mutations'
 import { Loader2, MapPin, Activity, Battery } from 'lucide-react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
+import { useHasPermission } from '@/hooks/useHasPermission'
+import { Permission } from '@sepulki/shared-types'
 
 // Dynamic import to avoid SSR issues
 const RobotMap = dynamic(
@@ -19,6 +22,7 @@ function FleetDetailPageContent() {
   const params = useParams()
   const router = useRouter()
   const fleetId = params.id as string
+  const hasManageFleetPermission = useHasPermission(Permission.MANAGE_FLEET)
 
   const { data, loading, error } = useQuery(FLEET_QUERY, {
     variables: { id: fleetId },
@@ -30,6 +34,35 @@ function FleetDetailPageContent() {
     variables: { fleetId },
     skip: !fleetId,
   })
+
+  const [updateRobotLocation] = useMutation(UPDATE_ROBOT_LOCATION_MUTATION, {
+    refetchQueries: [{ query: FLEET_QUERY, variables: { id: fleetId } }],
+    awaitRefetchQueries: true,
+    onError: (error) => {
+      console.error('Failed to update robot location:', error)
+    }
+  })
+
+  const handleRobotClick = async (robotId: string, coordinates: { latitude: number; longitude: number }) => {
+    if (!hasManageFleetPermission) return
+    
+    try {
+      await updateRobotLocation({
+        variables: {
+          robotId: robotId,
+          coordinates: {
+            latitude: coordinates.latitude,
+            longitude: coordinates.longitude,
+            altitude: coordinates.altitude
+          }
+        }
+      })
+      // Location will be updated via refetch
+    } catch (error) {
+      console.error('Failed to update robot location:', error)
+      throw error
+    }
+  }
 
   if (loading) {
     return (
@@ -181,6 +214,8 @@ function FleetDetailPageContent() {
           <RobotMap
             fleetId={fleetId}
             height="500px"
+            editable={hasManageFleetPermission}
+            onRobotClick={hasManageFleetPermission ? handleRobotClick : undefined}
           />
         </div>
       </div>

@@ -7,6 +7,8 @@ import { useState, useEffect, useMemo } from 'react'
 import Link from 'next/link'
 import { Loader2, Wifi, WifiOff, Battery, Activity } from 'lucide-react'
 import dynamic from 'next/dynamic'
+import { useHasPermission } from '@/hooks/useHasPermission'
+import { Permission } from '@sepulki/shared-types'
 
 // Dynamic import to avoid SSR issues
 const RobotMap = dynamic(
@@ -19,6 +21,8 @@ interface FleetDashboardProps {
 }
 
 export function FleetDashboard({ className = '' }: FleetDashboardProps) {
+  const hasManageFleetPermission = useHasPermission(Permission.MANAGE_FLEET)
+  
   const { data: fleetsData, loading: fleetsLoading, error: fleetsError } = useQuery(FLEETS_QUERY, {
     pollInterval: 5000, // Poll every 5 seconds as fallback
     fetchPolicy: 'cache-first', // Use cache-first to avoid flickering on each poll
@@ -296,12 +300,12 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
                 View Full Map →
               </Link>
             </div>
-            {fleets[0]?.id && (
-              <RobotMap
-                fleetId={fleets[0].id}
-                height="400px"
-              />
-            )}
+            <RobotMap
+              fleets={fleets}
+              robots={allRobots}
+              height="400px"
+              editable={hasManageFleetPermission}
+            />
           </div>
         </div>
       )}
