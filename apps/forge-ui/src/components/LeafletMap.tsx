@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useMemo } from 'react'
+import { useEffect, useState, useRef, useMemo, memo } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, Polyline, useMapEvents } from 'react-leaflet'
 import { Icon as LeafletIcon, LatLng, LatLngBounds } from 'leaflet'
 import Link from 'next/link'
@@ -176,7 +176,8 @@ function DraggableFleetMarker({
 }
 
 // Component for animated robot marker during movement
-function AnimatedRobotMarker({
+// Memoized to prevent re-renders when parent re-renders with same movement data
+const AnimatedRobotMarker = memo(function AnimatedRobotMarker({
   robot,
   movement,
   onComplete
@@ -188,12 +189,25 @@ function AnimatedRobotMarker({
   const [position, setPosition] = useState<[number, number]>(movement.start)
   const markerRef = useRef<any>(null)
   const animationRef = useRef<number>()
+  const movementRef = useRef(movement)
+  const onCompleteRef = useRef(onComplete)
+
+  // Keep refs in sync without triggering re-renders
+  useEffect(() => {
+    movementRef.current = movement
+  }, [movement])
+  useEffect(() => {
+    onCompleteRef.current = onComplete
+  }, [onComplete])
 
   useEffect(() => {
-    const startTime = Date.now()
+    // Only restart animation if startTime changes (new animation request)
+    // This prevents the animation from restarting on parent re-renders
+    const movement = movementRef.current
+    const animationStartTime = movement.startTime
     
     const animate = () => {
-      const elapsed = Date.now() - startTime
+      const elapsed = Date.now() - animationStartTime
       const progress = Math.min(elapsed / movement.duration, 1)
 
       // Interpolate position
@@ -211,10 +225,18 @@ function AnimatedRobotMarker({
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(animate)
       } else {
-        onComplete()
+        onCompleteRef.current()
       }
     }
 
+    // Reset position to start when animation begins
+    setPosition(movement.start)
+    
+    // Cancel any existing animation before starting new one
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current)
+    }
+    
     animationRef.current = requestAnimationFrame(animate)
 
     return () => {
@@ -222,7 +244,9 @@ function AnimatedRobotMarker({
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [movement, onComplete])
+    // Only restart if startTime changes (means it's a genuinely new animation)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [movement.startTime])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -259,7 +283,12 @@ function AnimatedRobotMarker({
       opacity={0.8}
     />
   )
-}
+}, (prevProps, nextProps) => {
+  // Only re-render if movement.startTime changes (new animation) or robot changes
+  return prevProps.movement.startTime === nextProps.movement.startTime &&
+         prevProps.robot.id === nextProps.robot.id &&
+         prevProps.robot.status === nextProps.robot.status
+})
 
 interface RobotMarker {
   id: string
@@ -417,18 +446,22 @@ export function LeafletMap({
     const robot = robots.find(r => r.id === robotId)
     if (!robot) return
 
+    // Use the current robot position as animation start (not pending position)
+    // This ensures the animation starts from where the marker actually is
+    const startPosition = robot.position
     const newCoords = { latitude: latlng.lat, longitude: latlng.lng }
     
     // Calculate animation duration (2 m/s for robot)
-    const distance = calculateDistance(robot.position[0], robot.position[1], latlng.lat, latlng.lng)
+    const distance = calculateDistance(startPosition[0], startPosition[1], latlng.lat, latlng.lng)
     const duration = Math.max(2000, Math.min(10000, distance / 2 * 1000)) // 2 m/s, 2-10 seconds
 
-    // Add movement animation
+    // Add movement animation BEFORE calling onLocationUpdate
+    // This ensures the animation state is set up before pending updates are applied
     setActiveMovements(prev => {
       const next = new Map(prev)
       next.set(`robot-${robotId}`, {
         target: [latlng.lat, latlng.lng],
-        start: robot.position,
+        start: startPosition,
         progress: 0,
         duration,
         startTime: Date.now()
@@ -443,7 +476,8 @@ export function LeafletMap({
       return next
     })
 
-    // Call update callback
+    // Call update callback AFTER animation state is set up
+    // This ensures the animation starts before pending updates change the marker position
     onLocationUpdate('robot', robotId, newCoords)
   }
 
@@ -511,7 +545,7 @@ export function LeafletMap({
 
   // Determine if we should use bounds fitting (multiple fleets, or multiple robots, or when fleets prop is provided)
   const shouldFitBounds = (fleets && fleets.length > 0) || (robots && robots.length > 1)
-  
+
   return (
     <div className={className} style={{ height }}>
       <MapContainer
@@ -680,9 +714,11 @@ export function LeafletMap({
             const robot = robots.find(r => r.id === robotId)
             if (!robot) return null
             
+            // Use stable key based on robot ID and startTime to prevent unnecessary re-renders
+            // The startTime ensures we only recreate the component when it's a genuinely new animation
             return (
               <AnimatedRobotMarker
-                key={`anim-${entityId}`}
+                key={`anim-${entityId}-${movement.startTime}`}
                 robot={robot}
                 movement={movement}
                 onComplete={() => handleMovementComplete(entityId)}

@@ -44,18 +44,18 @@ export default function SignInPage() {
         <div className="mt-8 space-y-6">
           {authMode === 'mock' && (
             <div className="space-y-4">
-              <div className="rounded-md bg-blue-50 p-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
+            <div className="rounded-md bg-blue-50 p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
                     <span className="text-2xl"></span>
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-sm font-medium text-blue-800">
+                </div>
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-blue-800">
                       Local Authentication Service
-                    </h3>
-                    <div className="mt-2 text-sm text-blue-700">
+                  </h3>
+                  <div className="mt-2 text-sm text-blue-700">
                       <p>Sign in with your credentials to access Sepulki Forge.</p>
-                    </div>
+                  </div>
                   </div>
                 </div>
               </div>

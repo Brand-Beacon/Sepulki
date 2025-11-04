@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet'
 import { Icon, LatLng } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -91,6 +91,16 @@ export function RobotMap({
   const [fleetCenter, setFleetCenter] = useState<[number, number] | null>(null)
   // Track pending location updates to keep markers at target position until refetch completes
   const [pendingUpdates, setPendingUpdates] = useState<Map<string, { lat: number; lng: number }>>(new Map())
+  const pendingUpdatesRef = useRef<Map<string, { lat: number; lng: number }>>(new Map())
+  // Track active animations to prevent position recalculation during animation
+  const activeAnimationsRef = useRef<Set<string>>(new Set())
+  // Store starting positions for animations to prevent them from being overwritten
+  const animationStartPositionsRef = useRef<Map<string, { lat: number; lng: number }>>(new Map())
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    pendingUpdatesRef.current = pendingUpdates
+  }, [pendingUpdates])
 
   // Fetch fleet data if fleetId provided
   const { data: fleetData, loading: fleetLoading } = useQuery(FLEET_QUERY, {
@@ -133,18 +143,19 @@ export function RobotMap({
   }, [fleets, fleet])
   
   // Add a key to track when fleets/fleet data changes to force recalculation
+  // IMPORTANT: Don't include robot poses in the key - they change frequently and cause unnecessary recalculations
+  // Only track fleet locations which determine the base positions
   const fleetDataKey = useMemo(() => {
-    // Create a key from fleet locations and robot poses to detect changes
+    // Create a key from fleet locations only
     const fleetKeys = fleets && Array.isArray(fleets) ? fleets.map((f: any) => 
       `${f.id}:${f.locus?.coordinates?.latitude},${f.locus?.coordinates?.longitude}`
     ).join('|') : ''
     const fleetKey = fleet ? 
       `${fleet.id}:${fleet.locus?.coordinates?.latitude},${fleet.locus?.coordinates?.longitude}` : ''
-    const robotKeys = fleetRobots.map((r: any) => 
-      `${r.id}:${r.pose?.position?.x},${r.pose?.position?.y}`
-    ).join('|')
-    return `${fleetKeys}|${fleetKey}|${robotKeys}`
-  }, [fleets, fleet, fleetRobots])
+    // Robot count to detect when robots are added/removed
+    const robotCount = fleetRobots.length
+    return `${fleetKeys}|${fleetKey}|${robotCount}`
+  }, [fleets, fleet, fleetRobots.length])
 
   // Convert robot poses to GPS coordinates
   // For now, use fleet locus coordinates as base and add pose offsets
@@ -156,46 +167,83 @@ export function RobotMap({
       
       // Validate fleet coordinates are valid numbers
       if (!isNaN(baseLat) && !isNaN(baseLng) && isFinite(baseLat) && isFinite(baseLng)) {
-        // Set fleet center
-        setFleetCenter([baseLat, baseLng])
+      // Set fleet center
+      setFleetCenter([baseLat, baseLng])
+      
+      // Convert robot poses to GPS coordinates
+      const positions: Record<string, { lat: number; lng: number }> = {}
+      
+      fleetRobots.forEach((robot: any) => {
+        // Don't update position if there's an active animation
+        // Use the stored starting position to prevent animation from being interrupted
+        const isAnimating = activeAnimationsRef.current.has(`robot-${robot.id}`)
+        if (isAnimating) {
+          // Use stored starting position if available, otherwise use current calculated position
+          const startPos = animationStartPositionsRef.current.get(`robot-${robot.id}`)
+          const existingPos = startPos || robotPositions[robot.id]
+          if (existingPos) {
+            positions[robot.id] = existingPos
+            return // Skip recalculation for this robot during animation
+          }
+        }
         
-        // Convert robot poses to GPS coordinates
-        const positions: Record<string, { lat: number; lng: number }> = {}
+        // Robot pose should now have GPS coordinates (latitude, longitude) from GraphQL
+        // Check if pose has valid GPS coordinates
+        const hasValidPose = robot.pose?.position && 
+          typeof robot.pose.position.latitude === 'number' && 
+          typeof robot.pose.position.longitude === 'number' &&
+          !isNaN(robot.pose.position.latitude) &&
+          !isNaN(robot.pose.position.longitude)
         
-        fleetRobots.forEach((robot: any) => {
-          // Robot pose should now have GPS coordinates (latitude, longitude) from GraphQL
-          // Check if pose has valid GPS coordinates
-          const hasValidPose = robot.pose?.position && 
-            typeof robot.pose.position.latitude === 'number' && 
-            typeof robot.pose.position.longitude === 'number' &&
-            !isNaN(robot.pose.position.latitude) &&
-            !isNaN(robot.pose.position.longitude)
+        if (hasValidPose) {
+          // Use GPS coordinates directly from GraphQL
+          const lat = robot.pose.position.latitude
+          const lng = robot.pose.position.longitude
           
-          if (hasValidPose) {
-            // Use GPS coordinates directly from GraphQL
-            const lat = robot.pose.position.latitude
-            const lng = robot.pose.position.longitude
-            
-            // Only set position if coordinates are valid numbers
-            if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
-              positions[robot.id] = { lat, lng }
-            } else {
-              // Use fleet center with small random offset for visibility
-              positions[robot.id] = {
-                lat: baseLat + (Math.random() - 0.5) * 0.001,
-                lng: baseLng + (Math.random() - 0.5) * 0.001
-              }
-            }
+          // Only set position if coordinates are valid numbers
+          if (!isNaN(lat) && !isNaN(lng) && isFinite(lat) && isFinite(lng)) {
+            positions[robot.id] = { lat, lng }
           } else {
             // Use fleet center with small random offset for visibility
-            positions[robot.id] = {
+          positions[robot.id] = {
               lat: baseLat + (Math.random() - 0.5) * 0.001,
               lng: baseLng + (Math.random() - 0.5) * 0.001
             }
           }
-        })
-        
-        setRobotPositions(positions)
+        } else {
+          // Use fleet center with small random offset for visibility
+          positions[robot.id] = {
+            lat: baseLat + (Math.random() - 0.5) * 0.001,
+            lng: baseLng + (Math.random() - 0.5) * 0.001
+          }
+        }
+      })
+      
+      // Only update state if positions actually changed (ignoring animating robots)
+      // This prevents unnecessary re-renders that reset animations
+      setRobotPositions(prev => {
+        // Check if any non-animating robot positions changed
+        let hasChanges = false
+        for (const robotId in positions) {
+          const isAnimating = activeAnimationsRef.current.has(`robot-${robotId}`)
+          if (!isAnimating) {
+            const oldPos = prev[robotId]
+            const newPos = positions[robotId]
+            if (!oldPos || oldPos.lat !== newPos.lat || oldPos.lng !== newPos.lng) {
+              hasChanges = true
+              break
+            }
+          }
+        }
+        // Also check if any robots were removed
+        for (const robotId in prev) {
+          if (!positions[robotId]) {
+            hasChanges = true
+            break
+          }
+        }
+        return hasChanges ? positions : prev
+      })
       } else {
         // Invalid fleet coordinates - skip setting positions
         console.warn('Invalid fleet coordinates:', baseLat, baseLng)
@@ -216,6 +264,19 @@ export function RobotMap({
           // Map each robot to its fleet's location
           const positions: Record<string, { lat: number; lng: number }> = {}
           fleetRobots.forEach((robot: any) => {
+            // Don't update position if there's an active animation
+            // Use the stored starting position to prevent animation from being interrupted
+            const isAnimating = activeAnimationsRef.current.has(`robot-${robot.id}`)
+            if (isAnimating) {
+              // Use stored starting position if available, otherwise use current calculated position
+              const startPos = animationStartPositionsRef.current.get(`robot-${robot.id}`)
+              const existingPos = startPos || robotPositions[robot.id]
+              if (existingPos) {
+                positions[robot.id] = existingPos
+                return // Skip recalculation for this robot during animation
+              }
+            }
+            
             // Find robot's fleet location
             const robotFleet = fleets.find((f: any) => f.robots?.some((r: any) => r.id === robot.id))
             const fleetLoc = robotFleet ? fleetLocationMap.get(robotFleet.id) : null
@@ -259,7 +320,32 @@ export function RobotMap({
               }
             }
           })
-          setRobotPositions(positions)
+          
+          // Only update state if positions actually changed (ignoring animating robots)
+          // This prevents unnecessary re-renders that reset animations
+          setRobotPositions(prev => {
+            // Check if any non-animating robot positions changed
+            let hasChanges = false
+            for (const robotId in positions) {
+              const isAnimating = activeAnimationsRef.current.has(`robot-${robotId}`)
+              if (!isAnimating) {
+                const oldPos = prev[robotId]
+                const newPos = positions[robotId]
+                if (!oldPos || oldPos.lat !== newPos.lat || oldPos.lng !== newPos.lng) {
+                  hasChanges = true
+                  break
+                }
+              }
+            }
+            // Also check if any robots were removed
+            for (const robotId in prev) {
+              if (!positions[robotId]) {
+                hasChanges = true
+                break
+              }
+            }
+            return hasChanges ? positions : prev
+          })
           
           // Clear pending fleet updates if the fleet position in the data matches the pending position
           setPendingUpdates(prev => {
@@ -296,19 +382,61 @@ export function RobotMap({
       
       const positions: Record<string, { lat: number; lng: number }> = {}
       fleetRobots.forEach((robot: any, index: number) => {
+        // Don't update position if there's an active animation
+        // Use the stored starting position to prevent animation from being interrupted
+        const isAnimating = activeAnimationsRef.current.has(`robot-${robot.id}`)
+        if (isAnimating) {
+          // Use stored starting position if available, otherwise use current calculated position
+          const startPos = animationStartPositionsRef.current.get(`robot-${robot.id}`)
+          const existingPos = startPos || robotPositions[robot.id]
+          if (existingPos) {
+            positions[robot.id] = existingPos
+            return // Skip recalculation for this robot during animation
+          }
+        }
+        
         positions[robot.id] = {
           lat: defaultCenter[0] + (Math.random() - 0.5) * 0.01,
           lng: defaultCenter[1] + (Math.random() - 0.5) * 0.01
         }
       })
-      setRobotPositions(positions)
+      
+      // Only update state if positions actually changed (ignoring animating robots)
+      // This prevents unnecessary re-renders that reset animations
+      setRobotPositions(prev => {
+        // Check if any non-animating robot positions changed
+        let hasChanges = false
+        for (const robotId in positions) {
+          const isAnimating = activeAnimationsRef.current.has(`robot-${robotId}`)
+          if (!isAnimating) {
+            const oldPos = prev[robotId]
+            const newPos = positions[robotId]
+            if (!oldPos || oldPos.lat !== newPos.lat || oldPos.lng !== newPos.lng) {
+              hasChanges = true
+              break
+            }
+          }
+        }
+        // Also check if any robots were removed
+        for (const robotId in prev) {
+          if (!positions[robotId]) {
+            hasChanges = true
+            break
+          }
+        }
+        return hasChanges ? positions : prev
+      })
       
       // Clear pending updates for robots that now have positions matching their target
-      // Check if any pending robot updates have been reflected in the recalculated positions
+      // Only clear if animation is not active (animation might still be in progress)
       setPendingUpdates(prev => {
         const next = new Map(prev)
         prev.forEach((pendingPos, key) => {
           if (key.startsWith('robot-')) {
+            // Don't clear if animation is still active
+            if (activeAnimationsRef.current.has(key)) {
+              return // Keep pending update during animation
+            }
             const robotId = key.replace('robot-', '')
             const calculatedPos = positions[robotId]
             // Clear pending update if calculated position matches target (within small tolerance)
@@ -393,7 +521,7 @@ export function RobotMap({
       // Always refetch FLEETS_QUERY to update multi-fleet view
       { query: FLEETS_QUERY }
     ],
-    awaitRefetchQueries: true, // Wait for refetch to complete before updating
+    awaitRefetchQueries: false,
     onError: (error) => {
       console.error('Failed to update robot location:', error)
     }
@@ -434,6 +562,7 @@ export function RobotMap({
 
   // Prepare robot markers
   // Use pending updates to override positions until refetch completes
+  // BUT: Don't apply pending updates if there's an active animation (handled by LeafletMap)
   const robotMarkers = fleetRobots
     .filter((robot: any) => {
       // Check if robot has a valid position (from pending update or calculated position)
@@ -451,9 +580,20 @@ export function RobotMap({
         isFinite(position.lng)
     })
     .map((robot: any) => {
-      // Check if there's a pending update for this robot
+      // Check if there's an active animation for this robot
+      // IMPORTANT: During animation, LeafletMap handles the position via AnimatedRobotMarker
+      // So we should use the stored starting position here to avoid flickering
+      // The pending position will be used after animation completes
+      const isAnimating = activeAnimationsRef.current.has(`robot-${robot.id}`)
       const pendingPos = pendingUpdates.get(`robot-${robot.id}`)
-      const position = pendingPos || robotPositions[robot.id]
+      const calculatedPos = robotPositions[robot.id]
+      
+      // If animating, use stored starting position (preserved from before animation started)
+      // This ensures the animation doesn't get interrupted by refetch
+      // If not animating, use pending position if available (for after animation completes)
+      // Otherwise use calculated position
+      const startPos = isAnimating ? animationStartPositionsRef.current.get(`robot-${robot.id}`) : null
+      const position = isAnimating ? (startPos || calculatedPos) : (pendingPos || calculatedPos)
       
       const bellowsData = telemetryData as { bellowsStream?: { metrics?: Array<{ robotId?: string; batteryLevel?: number }> } } | undefined
       const batteryLevel = bellowsData?.bellowsStream?.metrics?.find((m: any) => m.robotId === robot.id)?.batteryLevel || robot.batteryLevel || 0
@@ -510,6 +650,16 @@ export function RobotMap({
         coordInput.altitude = coordinates.altitude
       }
 
+      // For robots, mark animation as active FIRST and store starting position
+      // This ensures the useEffect knows not to recalculate positions during animation
+      if (type === 'robot') {
+        const currentPos = robotPositions[id]
+        if (currentPos) {
+          animationStartPositionsRef.current.set(`robot-${id}`, currentPos)
+        }
+        activeAnimationsRef.current.add(`robot-${id}`)
+      }
+      
       // Store pending update to keep marker at target position
       const pendingKey = type === 'fleet' ? `fleet-${id}` : `robot-${id}`
       setPendingUpdates(prev => {
@@ -548,12 +698,33 @@ export function RobotMap({
           })
         }
       } else if (type === 'robot') {
-        await updateRobotLocation({
+        // Animation flag was already set above, before pending update
+        // Call mutation without awaiting - this allows animation to start
+        // The refetch will happen asynchronously via refetchQueries
+        updateRobotLocation({
           variables: {
             robotId: id,
             coordinates: coordInput
           }
+        }).catch((error) => {
+          console.error('Failed to update robot location:', error)
+          // Clear pending update, animation flag, and start position on error
+          const pendingKey = `robot-${id}`
+          activeAnimationsRef.current.delete(pendingKey)
+          animationStartPositionsRef.current.delete(pendingKey)
+          setPendingUpdates(prev => {
+            const next = new Map(prev)
+            next.delete(pendingKey)
+            return next
+          })
         })
+        
+        // Clear animation flag and start position after animation duration (max 10 seconds)
+        // The refetch will have already happened asynchronously via refetchQueries
+        setTimeout(() => {
+          activeAnimationsRef.current.delete(`robot-${id}`)
+          animationStartPositionsRef.current.delete(`robot-${id}`)
+        }, 10000)
         
       // Don't clear pending update immediately - let useEffect verify the position was updated
       // The pending update will keep the marker at the target position until the refetch

@@ -2,10 +2,9 @@
 
 import { useParams, useRouter } from 'next/navigation'
 import { RouteGuard } from '@/components/RouteGuard'
-import { useQuery, useSubscription, useMutation } from '@apollo/client/react'
+import { useQuery, useSubscription } from '@apollo/client/react'
 import { FLEET_QUERY } from '@/lib/graphql/queries'
 import { BELLOWS_STREAM_SUBSCRIPTION } from '@/lib/graphql/subscriptions'
-import { UPDATE_ROBOT_LOCATION_MUTATION } from '@/lib/graphql/mutations'
 import { Loader2, MapPin, Activity, Battery } from 'lucide-react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
@@ -26,7 +25,9 @@ function FleetDetailPageContent() {
 
   const { data, loading, error } = useQuery(FLEET_QUERY, {
     variables: { id: fleetId },
-    fetchPolicy: 'cache-and-network'
+    pollInterval: 2000, // Poll every 2 seconds
+    fetchPolicy: 'cache-first', // Use cache-first to avoid immediate updates interrupting animation
+    notifyOnNetworkStatusChange: false // Don't trigger loading state on background refetches
   })
 
   // Subscribe to real-time telemetry
@@ -35,34 +36,8 @@ function FleetDetailPageContent() {
     skip: !fleetId,
   })
 
-  const [updateRobotLocation] = useMutation(UPDATE_ROBOT_LOCATION_MUTATION, {
-    refetchQueries: [{ query: FLEET_QUERY, variables: { id: fleetId } }],
-    awaitRefetchQueries: true,
-    onError: (error) => {
-      console.error('Failed to update robot location:', error)
-    }
-  })
-
-  const handleRobotClick = async (robotId: string, coordinates: { latitude: number; longitude: number }) => {
-    if (!hasManageFleetPermission) return
-    
-    try {
-      await updateRobotLocation({
-        variables: {
-          robotId: robotId,
-          coordinates: {
-            latitude: coordinates.latitude,
-            longitude: coordinates.longitude,
-            altitude: coordinates.altitude
-          }
-        }
-      })
-      // Location will be updated via refetch
-    } catch (error) {
-      console.error('Failed to update robot location:', error)
-      throw error
-    }
-  }
+  // Note: Robot location updates are now handled internally by RobotMap component
+  // via drag-and-drop with proper animation. No need for separate mutation here.
 
   if (loading) {
     return (
@@ -212,10 +187,10 @@ function FleetDetailPageContent() {
             </Link>
           </div>
           <RobotMap
-            fleetId={fleetId}
+            fleets={fleet ? [fleet] : []}
+            robots={robots}
             height="500px"
             editable={hasManageFleetPermission}
-            onRobotClick={hasManageFleetPermission ? handleRobotClick : undefined}
           />
         </div>
       </div>

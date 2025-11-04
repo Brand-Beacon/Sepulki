@@ -104,18 +104,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
       console.warn('Auth check timeout - setting loading to false');
       setLoading(false);
     }, 5000); // 5 second maximum timeout
-
+      
     // Check if auth state was explicitly cleared for testing (only if explicitly set to stay signed out)
-    const authData = (window as any).__SEPULKI_AUTH__;
+      const authData = (window as any).__SEPULKI_AUTH__;
     if (authData && authData.smith === null && authData.authMode === 'mock' && authData.staySignedOut === true) {
       clearTimeout(fallbackTimeout);
       console.log('Authentication explicitly cleared for testing - staying signed out');
-      setSmith(null);
+        setSmith(null);
       setAuthMode('mock');
-      setLoading(false);
-      return;
-    }
-
+        setLoading(false);
+        return;
+      }
+      
     // Environment-aware authentication setup
     console.log('🔍 Checking auth mode:', { 
       shouldUseMockAuth: shouldUseMockAuth(), 
@@ -149,8 +149,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // No authentication configured
       setAuthMode('none')
       console.warn('No authentication providers configured')
-      setLoading(false)
-    }
+    setLoading(false)
+  }
 
     // Cleanup function
     return () => {

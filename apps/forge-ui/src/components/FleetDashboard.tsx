@@ -300,12 +300,12 @@ export function FleetDashboard({ className = '' }: FleetDashboardProps) {
                 View Full Map →
               </Link>
             </div>
-            <RobotMap
+              <RobotMap
               fleets={fleets}
               robots={allRobots}
-              height="400px"
+                height="400px"
               editable={hasManageFleetPermission}
-            />
+              />
           </div>
         </div>
       )}

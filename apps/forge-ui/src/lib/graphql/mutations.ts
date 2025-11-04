@@ -22,10 +22,10 @@ export const UPDATE_FLEET_LOCATION_MUTATION = gql`
 export const UPDATE_ROBOT_LOCATION_MUTATION = gql`
   mutation UpdateRobotLocation($robotId: ID!, $coordinates: CoordinatesInput!) {
     updateRobotLocation(robotId: $robotId, coordinates: $coordinates) {
-      id
-      name
+        id
+        name
       pose {
-        position {
+          position {
           latitude
           longitude
           altitude
@@ -112,8 +112,8 @@ export const ASSIGN_ROBOT_TO_FLOOR_MUTATION = gql`
 export const UPDATE_ROBOT_FLOOR_POSITION_MUTATION = gql`
   mutation UpdateRobotFloorPosition($robotId: ID!, $position: FloorPositionInput!) {
     updateRobotFloorPosition(robotId: $robotId, position: $position) {
-      id
-      name
+        id
+        name
       floorPositionX
       floorPositionY
       floorPositionTheta
