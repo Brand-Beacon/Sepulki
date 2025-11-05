@@ -1,0 +1,100 @@
+# ==========================================
+# HAMMER ORCHESTRATOR - RAILWAY DEPLOYMENT
+# ==========================================
+# Multi-stage build for optimized production deployment
+# GraphQL API gateway and fleet orchestration service
+
+# ==========================================
+# STAGE 1: Dependencies
+# ==========================================
+FROM node:18-alpine AS deps
+
+# Install dependencies for native modules (bcrypt, etc.)
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    libc6-compat
+
+WORKDIR /app
+
+# Copy package files for all workspace dependencies
+COPY package.json package-lock.json* ./
+COPY services/hammer-orchestrator/package.json ./services/hammer-orchestrator/
+COPY packages/shared-types/package.json ./packages/shared-types/
+COPY packages/graphql-schema/package.json ./packages/graphql-schema/
+
+# Install dependencies with production optimizations
+RUN npm ci --only=production --ignore-scripts && \
+    npm cache clean --force
+
+# ==========================================
+# STAGE 2: Builder
+# ==========================================
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/services/hammer-orchestrator/node_modules ./services/hammer-orchestrator/node_modules
+
+# Copy source code
+COPY packages/shared-types ./packages/shared-types
+COPY packages/graphql-schema ./packages/graphql-schema
+COPY services/hammer-orchestrator ./services/hammer-orchestrator
+
+# Build TypeScript
+WORKDIR /app/services/hammer-orchestrator
+RUN npm run build
+
+# ==========================================
+# STAGE 3: Runner (Production)
+# ==========================================
+FROM node:18-alpine AS runner
+
+# Install dumb-init for proper signal handling
+RUN apk add --no-cache dumb-init
+
+WORKDIR /app
+
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 hammer
+
+# Copy production dependencies
+COPY --from=deps --chown=hammer:nodejs /app/node_modules ./node_modules
+COPY --from=deps --chown=hammer:nodejs /app/services/hammer-orchestrator/node_modules ./services/hammer-orchestrator/node_modules
+
+# Copy built application
+COPY --from=builder --chown=hammer:nodejs /app/services/hammer-orchestrator/dist ./services/hammer-orchestrator/dist
+COPY --from=builder --chown=hammer:nodejs /app/services/hammer-orchestrator/package.json ./services/hammer-orchestrator/
+COPY --from=builder --chown=hammer:nodejs /app/packages ./packages
+
+# Create uploads directory for file storage
+RUN mkdir -p /app/services/hammer-orchestrator/uploads && \
+    chown -R hammer:nodejs /app/services/hammer-orchestrator/uploads
+
+# Set working directory
+WORKDIR /app/services/hammer-orchestrator
+
+# Switch to non-root user
+USER hammer
+
+# Environment variables
+ENV NODE_ENV=production
+ENV PORT=4000
+ENV HOST=0.0.0.0
+
+# Expose port
+EXPOSE 4000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD node -e "require('http').get('http://localhost:4000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+
+# Start application
+CMD ["node", "dist/index.js"]

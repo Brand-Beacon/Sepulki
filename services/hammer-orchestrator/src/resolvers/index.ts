@@ -8,6 +8,7 @@ import { telemetryResolvers } from './telemetry';
 import { uploadResolvers } from './upload';
 import { subscriptionResolvers } from './subscriptions';
 import { factoryFloorResolvers } from './factory-floor';
+import { edictMutations } from './edict-mutations';
 import type { Resolvers } from './types';
 
 export const resolvers: Resolvers = {
@@ -28,7 +29,7 @@ export const resolvers: Resolvers = {
     edicts: async () => [],
   },
 
-  // Mutations  
+  // Mutations
   Mutation: {
     ...sepulkaResolvers.Mutation,
     ...fleetResolvers.Mutation,
@@ -36,12 +37,9 @@ export const resolvers: Resolvers = {
     ...authResolvers.Mutation,
     ...uploadResolvers.Mutation,
     ...factoryFloorResolvers.Mutation,
-    
+    ...edictMutations,
+
     // Stub implementations for missing mutations (TODO: Implement properly)
-    recallFleet: async () => { throw new Error('recallFleet not yet implemented') },
-    addEdict: async () => { throw new Error('addEdict not yet implemented') },
-    updateEdict: async () => { throw new Error('updateEdict not yet implemented') },
-    deactivateEdict: async () => { throw new Error('deactivateEdict not yet implemented') },
     logout: async () => { throw new Error('logout not yet implemented') },
   },
 

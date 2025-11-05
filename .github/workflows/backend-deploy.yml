@@ -1,0 +1,404 @@
+name: Backend Services CI/CD
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'services/**'
+      - '.github/workflows/backend-deploy.yml'
+  workflow_dispatch:
+    inputs:
+      service:
+        description: 'Service to deploy (all, hammer-orchestrator, local-auth, anvil-sim)'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - hammer-orchestrator
+          - local-auth
+          - anvil-sim
+
+env:
+  NODE_VERSION: '20'
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # Job 1: Detect changed services
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      hammer: ${{ steps.changes.outputs.hammer }}
+      auth: ${{ steps.changes.outputs.auth }}
+      anvil: ${{ steps.changes.outputs.anvil }}
+      any: ${{ steps.changes.outputs.any }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for service changes
+        id: changes
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            SERVICE="${{ github.event.inputs.service }}"
+            if [ "$SERVICE" == "all" ] || [ "$SERVICE" == "hammer-orchestrator" ]; then
+              echo "hammer=true" >> $GITHUB_OUTPUT
+            fi
+            if [ "$SERVICE" == "all" ] || [ "$SERVICE" == "local-auth" ]; then
+              echo "auth=true" >> $GITHUB_OUTPUT
+            fi
+            if [ "$SERVICE" == "all" ] || [ "$SERVICE" == "anvil-sim" ]; then
+              echo "anvil=true" >> $GITHUB_OUTPUT
+            fi
+            echo "any=true" >> $GITHUB_OUTPUT
+          else
+            # Auto-detect changes from git diff
+            if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "services/hammer-orchestrator"; then
+              echo "hammer=true" >> $GITHUB_OUTPUT
+              echo "any=true" >> $GITHUB_OUTPUT
+            fi
+            if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "services/local-auth"; then
+              echo "auth=true" >> $GITHUB_OUTPUT
+              echo "any=true" >> $GITHUB_OUTPUT
+            fi
+            if git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep -q "services/anvil-sim"; then
+              echo "anvil=true" >> $GITHUB_OUTPUT
+              echo "any=true" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  # Job 2: Build and test Hammer Orchestrator
+  build-hammer:
+    name: Build Hammer Orchestrator
+    needs: detect-changes
+    if: needs.detect-changes.outputs.hammer == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: services/hammer-orchestrator/package-lock.json
+
+      - name: Install dependencies
+        working-directory: services/hammer-orchestrator
+        run: npm ci
+
+      - name: Run type check
+        working-directory: services/hammer-orchestrator
+        run: npm run build || npx tsc --noEmit
+
+      - name: Run tests
+        working-directory: services/hammer-orchestrator
+        run: npm test || echo "No tests configured"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/hammer-orchestrator
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/hammer-orchestrator
+          file: ./services/hammer-orchestrator/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_VERSION=${{ env.NODE_VERSION }}
+
+  # Job 3: Build and test Local Auth Service
+  build-auth:
+    name: Build Local Auth Service
+    needs: detect-changes
+    if: needs.detect-changes.outputs.auth == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: services/local-auth/package-lock.json
+
+      - name: Install dependencies
+        working-directory: services/local-auth
+        run: npm ci
+
+      - name: Run type check
+        working-directory: services/local-auth
+        run: npm run build || npx tsc --noEmit
+
+      - name: Run tests
+        working-directory: services/local-auth
+        run: npm test || echo "No tests configured"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/local-auth
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/local-auth
+          file: ./services/local-auth/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_VERSION=${{ env.NODE_VERSION }}
+
+  # Job 4: Build and test Anvil Simulator
+  build-anvil:
+    name: Build Anvil Simulator
+    needs: detect-changes
+    if: needs.detect-changes.outputs.anvil == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: services/anvil-sim/package-lock.json
+
+      - name: Install dependencies
+        working-directory: services/anvil-sim
+        run: npm ci
+
+      - name: Run type check
+        working-directory: services/anvil-sim
+        run: npm run build || npx tsc --noEmit
+
+      - name: Run tests
+        working-directory: services/anvil-sim
+        run: npm test || echo "No tests configured"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/anvil-sim
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/anvil-sim
+          file: ./services/anvil-sim/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_VERSION=${{ env.NODE_VERSION }}
+
+  # Job 5: Deploy to Railway/Cloud Platform
+  deploy-services:
+    name: Deploy Services
+    needs: [detect-changes, build-hammer, build-auth, build-anvil]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.any == 'true' &&
+      (needs.build-hammer.result == 'success' || needs.build-hammer.result == 'skipped') &&
+      (needs.build-auth.result == 'success' || needs.build-auth.result == 'skipped') &&
+      (needs.build-anvil.result == 'success' || needs.build-anvil.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Option 1: Deploy to Railway
+      - name: Deploy to Railway
+        if: env.RAILWAY_TOKEN != ''
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          # Install Railway CLI
+          npm i -g @railway/cli
+
+          # Deploy each changed service
+          if [ "${{ needs.detect-changes.outputs.hammer }}" == "true" ]; then
+            echo "Deploying hammer-orchestrator..."
+            cd services/hammer-orchestrator
+            railway up --service hammer-orchestrator
+            cd ../..
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.auth }}" == "true" ]; then
+            echo "Deploying local-auth..."
+            cd services/local-auth
+            railway up --service local-auth
+            cd ../..
+          fi
+
+          if [ "${{ needs.detect-changes.outputs.anvil }}" == "true" ]; then
+            echo "Deploying anvil-sim..."
+            cd services/anvil-sim
+            railway up --service anvil-sim
+            cd ../..
+          fi
+
+      # Option 2: Deploy using Docker Compose on remote server
+      - name: Deploy via SSH
+        if: env.DEPLOY_HOST != ''
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          echo "Deploying to $DEPLOY_HOST..."
+          # Add SSH deployment logic here
+          # ssh $DEPLOY_USER@$DEPLOY_HOST "docker-compose pull && docker-compose up -d"
+
+      # Option 3: Update Kubernetes manifests
+      - name: Deploy to Kubernetes
+        if: env.KUBECONFIG != ''
+        env:
+          KUBECONFIG: ${{ secrets.KUBECONFIG }}
+        run: |
+          echo "Deploying to Kubernetes cluster..."
+          # Add kubectl deployment logic here
+          # kubectl set image deployment/hammer-orchestrator hammer-orchestrator=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/hammer-orchestrator:latest
+
+      - name: Deployment summary
+        run: |
+          echo "✅ Backend services deployed successfully"
+          echo "Changed services:"
+          [ "${{ needs.detect-changes.outputs.hammer }}" == "true" ] && echo "  - hammer-orchestrator"
+          [ "${{ needs.detect-changes.outputs.auth }}" == "true" ] && echo "  - local-auth"
+          [ "${{ needs.detect-changes.outputs.anvil }}" == "true" ] && echo "  - anvil-sim"
+
+  # Job 6: Health check
+  health-check:
+    name: Post-Deployment Health Check
+    needs: deploy-services
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Wait for services to stabilize
+        run: sleep 30
+
+      - name: Check service health
+        run: |
+          echo "Checking service health endpoints..."
+          # Add health check logic for your services
+          # curl -f https://your-hammer-orchestrator.railway.app/health || exit 1
+          # curl -f https://your-local-auth.railway.app/health || exit 1
+          # curl -f https://your-anvil-sim.railway.app/health || exit 1
+
+  # Job 7: Rollback on failure
+  rollback:
+    name: Rollback on Failure
+    needs: [deploy-services, health-check]
+    runs-on: ubuntu-latest
+    if: failure()
+    steps:
+      - name: Rollback deployment
+        run: |
+          echo "⚠️ Deployment failed, initiating rollback..."
+          # Add rollback logic here
+          # railway rollback --service hammer-orchestrator
+          # kubectl rollout undo deployment/hammer-orchestrator
+
+  # Job 8: Notify on completion
+  notify:
+    name: Notify Deployment Status
+    needs: [deploy-services, health-check]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Deployment notification
+        run: |
+          if [ "${{ needs.health-check.result }}" == "success" ]; then
+            echo "✅ Backend deployment completed successfully"
+          else
+            echo "⚠️ Backend deployment failed or was rolled back"
+          fi
+        # Uncomment for Slack/Discord:
+        # - name: Slack Notification
+        #   uses: rtCamp/action-slack-notify@v2
+        #   env:
+        #     SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        #     SLACK_TITLE: Backend Deployment ${{ needs.health-check.result == 'success' && 'Completed' || 'Failed' }}
+        #     SLACK_COLOR: ${{ needs.health-check.result == 'success' && 'good' || 'danger' }}

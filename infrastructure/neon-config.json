@@ -1,0 +1,21 @@
+{
+  "name": "sepulki-production",
+  "region": "us-east-1",
+  "postgres": {
+    "version": "15",
+    "extensions": ["uuid-ossp", "pgcrypto", "pg_trgm"]
+  },
+  "pooling": {
+    "mode": "transaction",
+    "maxConnections": 100,
+    "connectionTimeout": 30000
+  },
+  "ssl": {
+    "enabled": true,
+    "rejectUnauthorized": true
+  },
+  "database": {
+    "name": "sepulki",
+    "charset": "UTF8"
+  }
+}

@@ -85,18 +85,10 @@ export default function SignInPage() {
                     });
                     
                     const result = await response.json();
-                    
+
                     if (result.success) {
-                      // Reload to get new session - use current origin
-                      const callbackUrl = result.callbackUrl || '/'
-                      const redirectUrl = callbackUrl.startsWith('http')
-                        ? callbackUrl.replace(/http:\/\/(127\.0\.0\.1|localhost):3000/, currentOrigin)
-                        : `${currentOrigin}${callbackUrl.startsWith('/') ? callbackUrl : '/'}`
-                      
-                      // Wait a moment for cookie to be set
-                      setTimeout(() => {
-                        window.location.href = redirectUrl
-                      }, 200)
+                      // Cookie is set synchronously - redirect immediately
+                      window.location.href = result.callbackUrl || '/'
                     } else {
                       alert('Sign in failed: ' + (result.error || 'Invalid credentials'));
                     }

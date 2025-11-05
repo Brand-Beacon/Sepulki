@@ -487,6 +487,16 @@ export const factoryFloorResolvers = {
   },
 
   FactoryFloor: {
+    // Map snake_case database columns to camelCase GraphQL fields
+    widthMeters: (parent: any) => parent.width_meters,
+    heightMeters: (parent: any) => parent.height_meters,
+    scaleFactor: (parent: any) => parent.scale_factor,
+    originX: (parent: any) => parent.origin_x,
+    originY: (parent: any) => parent.origin_y,
+    blueprintUrl: (parent: any) => parent.blueprint_url,
+    blueprintType: (parent: any) => parent.blueprint_type,
+    createdAt: (parent: any) => parent.created_at,
+
     async robots(parent: any, args: any, context: Context) {
       try {
         return await context.dataloaders.robotsByFactoryFloor.load(parent.id);
@@ -497,9 +507,14 @@ export const factoryFloorResolvers = {
 
     async createdBy(parent: any, args: any, context: Context) {
       try {
-      return await context.dataloaders.smith.load(parent.created_by);
+        // Handle case where created_by is null or undefined
+        if (!parent.created_by) {
+          return null;
+        }
+        return await context.dataloaders.smith.load(parent.created_by);
       } catch (error) {
-        throw new ServiceError('database', `Failed to fetch creator for factory floor: ${error}`);
+        console.error('Failed to fetch creator for factory floor:', error);
+        return null; // Return null instead of throwing to prevent breaking the entire query
       }
     },
   },

@@ -1,0 +1,433 @@
+name: Deploy Frontend to Vercel
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+      - staging
+    paths:
+      - 'apps/forge-ui/**'
+      - 'packages/shared-types/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-frontend.yml'
+  pull_request:
+    branches:
+      - master
+      - dev
+    paths:
+      - 'apps/forge-ui/**'
+      - 'packages/shared-types/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+        default: 'development'
+
+env:
+  NODE_VERSION: '20'
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  # Job 1: Install dependencies and cache
+  setup:
+    name: Setup and Cache Dependencies
+    runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache-keys.outputs.cache-key }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Generate cache key
+        id: cache-keys
+        run: |
+          echo "cache-key=${{ runner.os }}-node-modules-${{ hashFiles('**/package-lock.json') }}" >> $GITHUB_OUTPUT
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        id: npm-cache
+        with:
+          path: |
+            node_modules
+            apps/forge-ui/node_modules
+            packages/shared-types/node_modules
+          key: ${{ steps.cache-keys.outputs.cache-key }}
+          restore-keys: |
+            ${{ runner.os }}-node-modules-
+
+      - name: Install dependencies
+        if: steps.npm-cache.outputs.cache-hit != 'true'
+        run: npm ci --legacy-peer-deps
+
+      - name: Build shared packages
+        working-directory: packages/shared-types
+        run: npm run build || echo "No build script for shared-types"
+
+  # Job 2: Type checking (parallel with lint)
+  typecheck:
+    name: TypeScript Type Check
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/forge-ui/node_modules
+            packages/shared-types/node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Run type check
+        working-directory: apps/forge-ui
+        run: npx tsc --noEmit
+
+  # Job 3: Linting (parallel with typecheck)
+  lint:
+    name: ESLint Code Quality
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/forge-ui/node_modules
+            packages/shared-types/node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Run ESLint
+        working-directory: apps/forge-ui
+        run: npm run lint
+
+  # Job 4: Unit tests
+  test:
+    name: Unit Tests
+    needs: setup
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/forge-ui/node_modules
+            packages/shared-types/node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Run tests
+        working-directory: apps/forge-ui
+        run: npm test -- --coverage --passWithNoTests
+        env:
+          CI: true
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v4
+        if: success()
+        with:
+          files: ./apps/forge-ui/coverage/lcov.info
+          flags: frontend
+          name: forge-ui-coverage
+          token: ${{ secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: false
+
+  # Job 5: Build application
+  build:
+    name: Build Next.js Application
+    needs: [typecheck, lint, test]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment:
+          - ${{ github.ref == 'refs/heads/master' && 'production' || github.ref == 'refs/heads/staging' && 'staging' || 'development' }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            apps/forge-ui/node_modules
+            packages/shared-types/node_modules
+          key: ${{ needs.setup.outputs.cache-key }}
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: |
+            apps/forge-ui/.next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('apps/forge-ui/**/*.js', 'apps/forge-ui/**/*.jsx', 'apps/forge-ui/**/*.ts', 'apps/forge-ui/**/*.tsx') }}
+          restore-keys: |
+            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+
+      - name: Build Next.js application
+        working-directory: apps/forge-ui
+        run: npm run build
+        env:
+          # Environment-specific variables
+          NEXT_PUBLIC_API_URL: ${{ secrets[format('NEXT_PUBLIC_API_URL_{0}', matrix.environment == 'production' && 'PROD' || matrix.environment == 'staging' && 'STAGING' || 'DEV')] }}
+          NEXT_PUBLIC_GRAPHQL_ENDPOINT: ${{ secrets[format('NEXT_PUBLIC_GRAPHQL_ENDPOINT_{0}', matrix.environment == 'production' && 'PROD' || matrix.environment == 'staging' && 'STAGING' || 'DEV')] }}
+          NEXT_PUBLIC_WS_ENDPOINT: ${{ secrets[format('NEXT_PUBLIC_WS_ENDPOINT_{0}', matrix.environment == 'production' && 'PROD' || matrix.environment == 'staging' && 'STAGING' || 'DEV')] }}
+          NEXTAUTH_URL: ${{ secrets[format('NEXTAUTH_URL_{0}', matrix.environment == 'production' && 'PROD' || matrix.environment == 'staging' && 'STAGING' || 'DEV')] }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: nextjs-build-${{ matrix.environment }}
+          path: |
+            apps/forge-ui/.next
+            apps/forge-ui/public
+          retention-days: 3
+
+  # Job 6: Deploy to Vercel Production
+  deploy-production:
+    name: Deploy to Vercel (Production)
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment information
+        working-directory: apps/forge-ui
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build project artifacts
+        working-directory: apps/forge-ui
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel
+        id: deploy
+        working-directory: apps/forge-ui
+        run: |
+          URL=$(vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "🚀 Deployed to: $URL"
+
+      - name: Add deployment comment to PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🚀 **Production deployment ready!**\n\nURL: ${{ steps.deploy.outputs.url }}'
+            })
+
+  # Job 7: Deploy to Vercel Staging
+  deploy-staging:
+    name: Deploy to Vercel (Staging)
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment information
+        working-directory: apps/forge-ui
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build project artifacts
+        working-directory: apps/forge-ui
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel
+        id: deploy
+        working-directory: apps/forge-ui
+        run: |
+          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "🔍 Staging deployed to: $URL"
+
+  # Job 8: Deploy Preview for PRs
+  deploy-preview:
+    name: Deploy Preview
+    needs: build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: preview
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel environment information
+        working-directory: apps/forge-ui
+        run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build project artifacts
+        working-directory: apps/forge-ui
+        run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy to Vercel
+        id: deploy
+        working-directory: apps/forge-ui
+        run: |
+          URL=$(vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "🔍 Preview deployed to: $URL"
+
+      - name: Comment preview URL on PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '🔍 **Preview deployment ready!**\n\nURL: ${{ steps.deploy.outputs.url }}\n\nThis preview will be automatically updated when you push new commits.'
+            })
+
+  # Job 9: Lighthouse CI performance audit
+  lighthouse:
+    name: Lighthouse Performance Audit
+    needs: deploy-preview
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Wait for deployment
+        run: sleep 30
+
+      - name: Run Lighthouse CI
+        uses: treosh/lighthouse-ci-action@v11
+        with:
+          urls: |
+            ${{ needs.deploy-preview.outputs.url }}
+          uploadArtifacts: true
+          temporaryPublicStorage: true
+
+  # Job 10: Notify on deployment status
+  notify:
+    name: Notify Deployment Status
+    needs: [deploy-production, deploy-staging, deploy-preview]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deployment status
+        run: |
+          if [ "${{ needs.deploy-production.result }}" == "success" ]; then
+            echo "✅ Production deployment successful"
+          elif [ "${{ needs.deploy-staging.result }}" == "success" ]; then
+            echo "✅ Staging deployment successful"
+          elif [ "${{ needs.deploy-preview.result }}" == "success" ]; then
+            echo "✅ Preview deployment successful"
+          else
+            echo "⚠️ Deployment completed with status: ${{ needs.deploy-production.result || needs.deploy-staging.result || needs.deploy-preview.result }}"
+          fi
+
+      - name: Generate deployment summary
+        run: |
+          echo "## 🚀 Frontend Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Actor:** @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Deployment Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Production: ${{ needs.deploy-production.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Staging: ${{ needs.deploy-staging.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Preview: ${{ needs.deploy-preview.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
+
+      # Optional: Uncomment for Slack notifications
+      # - name: Slack Notification
+      #   uses: rtCamp/action-slack-notify@v2
+      #   env:
+      #     SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+      #     SLACK_CHANNEL: deployments
+      #     SLACK_TITLE: Frontend Deployment
+      #     SLACK_MESSAGE: |
+      #       Environment: ${{ github.ref == 'refs/heads/master' && 'Production' || github.ref == 'refs/heads/staging' && 'Staging' || 'Preview' }}
+      #       Status: ${{ needs.deploy-production.result || needs.deploy-staging.result || needs.deploy-preview.result }}
+      #     SLACK_COLOR: ${{ (needs.deploy-production.result == 'success' || needs.deploy-staging.result == 'success' || needs.deploy-preview.result == 'success') && 'good' || 'danger' }}

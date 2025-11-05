@@ -1,0 +1,118 @@
+version: 2
+updates:
+  # Frontend dependencies
+  - package-ecosystem: "npm"
+    directory: "/app"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "${{ github.repository_owner }}"
+    labels:
+      - "dependencies"
+      - "frontend"
+    commit-message:
+      prefix: "deps(frontend)"
+      include: "scope"
+    versioning-strategy: "increase"
+
+  # Hammer Orchestrator service
+  - package-ecosystem: "npm"
+    directory: "/services/hammer-orchestrator"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "${{ github.repository_owner }}"
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "deps(hammer)"
+      include: "scope"
+
+  # Local Auth service
+  - package-ecosystem: "npm"
+    directory: "/services/local-auth"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "${{ github.repository_owner }}"
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "deps(auth)"
+      include: "scope"
+
+  # Anvil Simulator service
+  - package-ecosystem: "npm"
+    directory: "/services/anvil-sim"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "${{ github.repository_owner }}"
+    labels:
+      - "dependencies"
+      - "backend"
+    commit-message:
+      prefix: "deps(anvil)"
+      include: "scope"
+
+  # GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "${{ github.repository_owner }}"
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "deps(actions)"
+      include: "scope"
+
+  # Docker
+  - package-ecosystem: "docker"
+    directory: "/services/hammer-orchestrator"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+
+  - package-ecosystem: "docker"
+    directory: "/services/local-auth"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"
+
+  - package-ecosystem: "docker"
+    directory: "/services/anvil-sim"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"

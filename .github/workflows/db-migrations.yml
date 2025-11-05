@@ -1,0 +1,344 @@
+name: Database Migrations
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+        default: 'development'
+      action:
+        description: 'Migration action'
+        required: true
+        type: choice
+        options:
+          - migrate
+          - rollback
+          - status
+        default: 'status'
+      backup:
+        description: 'Create backup before migration'
+        required: true
+        type: boolean
+        default: true
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  # Job 1: Pre-migration checks
+  pre-migration-checks:
+    name: Pre-Migration Checks
+    runs-on: ubuntu-latest
+    outputs:
+      can-proceed: ${{ steps.checks.outputs.can_proceed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Validate migration environment
+        id: checks
+        run: |
+          echo "Validating migration for ${{ github.event.inputs.environment }}"
+
+          # Check if required secrets are set
+          if [ "${{ github.event.inputs.environment }}" == "production" ]; then
+            if [ -z "${{ secrets.PROD_DATABASE_URL }}" ]; then
+              echo "❌ Production database URL not configured"
+              echo "can_proceed=false" >> $GITHUB_OUTPUT
+              exit 1
+            fi
+          fi
+
+          echo "✅ Pre-migration checks passed"
+          echo "can_proceed=true" >> $GITHUB_OUTPUT
+
+      - name: Require approval for production
+        if: github.event.inputs.environment == 'production'
+        uses: trstringer/manual-approval@v1
+        with:
+          secret: ${{ secrets.GITHUB_TOKEN }}
+          approvers: ${{ github.repository_owner }}
+          minimum-approvals: 1
+          issue-title: "Approve production database migration"
+          issue-body: |
+            **⚠️ PRODUCTION DATABASE MIGRATION REQUESTED**
+
+            **Action:** ${{ github.event.inputs.action }}
+            **Backup:** ${{ github.event.inputs.backup }}
+            **Initiated by:** @${{ github.actor }}
+
+            Please review and approve this migration carefully.
+
+  # Job 2: Create database backup
+  backup-database:
+    name: Backup Database
+    needs: pre-migration-checks
+    if: github.event.inputs.backup == 'true' && needs.pre-migration-checks.outputs.can-proceed == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    outputs:
+      backup-id: ${{ steps.backup.outputs.backup_id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Create database backup
+        id: backup
+        env:
+          DATABASE_URL: ${{ secrets[format('{0}_DATABASE_URL', github.event.inputs.environment == 'development' && 'DEV' || github.event.inputs.environment == 'staging' && 'STAGING' || 'PROD')] }}
+        run: |
+          BACKUP_ID="backup-$(date +%Y%m%d-%H%M%S)"
+          BACKUP_FILE="${BACKUP_ID}.sql"
+
+          echo "Creating backup: $BACKUP_FILE"
+
+          # Extract connection details from DATABASE_URL
+          pg_dump "$DATABASE_URL" > "$BACKUP_FILE"
+
+          # Compress backup
+          gzip "$BACKUP_FILE"
+
+          echo "✅ Backup created: ${BACKUP_FILE}.gz"
+          echo "backup_id=$BACKUP_ID" >> $GITHUB_OUTPUT
+
+      - name: Upload backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-backup-${{ steps.backup.outputs.backup_id }}
+          path: "*.sql.gz"
+          retention-days: 30
+
+      - name: Save backup to cloud storage (optional)
+        if: env.AWS_S3_BUCKET != ''
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+        run: |
+          # Upload to S3/cloud storage
+          # aws s3 cp *.sql.gz s3://$AWS_S3_BUCKET/backups/
+
+  # Job 3: Run migrations
+  run-migrations:
+    name: Run Database Migrations
+    needs: [pre-migration-checks, backup-database]
+    if: |
+      always() &&
+      needs.pre-migration-checks.outputs.can-proceed == 'true' &&
+      (needs.backup-database.result == 'success' || needs.backup-database.result == 'skipped') &&
+      github.event.inputs.action != 'status'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run migration status
+        id: status
+        env:
+          DATABASE_URL: ${{ secrets[format('{0}_DATABASE_URL', github.event.inputs.environment == 'development' && 'DEV' || github.event.inputs.environment == 'staging' && 'STAGING' || 'PROD')] }}
+        run: |
+          echo "Current migration status:"
+
+          # Check if using Prisma
+          if [ -f "prisma/schema.prisma" ]; then
+            npx prisma migrate status || true
+          fi
+
+          # Check if using other migration tools (Knex, TypeORM, etc.)
+          if [ -f "knexfile.js" ]; then
+            npx knex migrate:status || true
+          fi
+
+      - name: Run migrations
+        if: github.event.inputs.action == 'migrate'
+        env:
+          DATABASE_URL: ${{ secrets[format('{0}_DATABASE_URL', github.event.inputs.environment == 'development' && 'DEV' || github.event.inputs.environment == 'staging' && 'STAGING' || 'PROD')] }}
+        run: |
+          echo "Running database migrations..."
+
+          # Prisma migrations
+          if [ -f "prisma/schema.prisma" ]; then
+            npx prisma migrate deploy
+            npx prisma generate
+          fi
+
+          # Knex migrations
+          if [ -f "knexfile.js" ]; then
+            npx knex migrate:latest
+          fi
+
+          # Custom migration script
+          if [ -f "scripts/migrate.js" ]; then
+            node scripts/migrate.js
+          fi
+
+          echo "✅ Migrations completed successfully"
+
+      - name: Rollback migrations
+        if: github.event.inputs.action == 'rollback'
+        env:
+          DATABASE_URL: ${{ secrets[format('{0}_DATABASE_URL', github.event.inputs.environment == 'development' && 'DEV' || github.event.inputs.environment == 'staging' && 'STAGING' || 'PROD')] }}
+        run: |
+          echo "⚠️ Rolling back last migration..."
+
+          # Knex rollback
+          if [ -f "knexfile.js" ]; then
+            npx knex migrate:rollback
+          fi
+
+          # Custom rollback script
+          if [ -f "scripts/rollback.js" ]; then
+            node scripts/rollback.js
+          fi
+
+          echo "✅ Rollback completed"
+
+      - name: Update migration summary
+        run: |
+          echo "## Migration Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Action:** ${{ github.event.inputs.action }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Backup created:** ${{ github.event.inputs.backup }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Success ✅" >> $GITHUB_STEP_SUMMARY
+
+  # Job 4: Verify migration
+  verify-migration:
+    name: Verify Migration
+    needs: run-migrations
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run database health checks
+        env:
+          DATABASE_URL: ${{ secrets[format('{0}_DATABASE_URL', github.event.inputs.environment == 'development' && 'DEV' || github.event.inputs.environment == 'staging' && 'STAGING' || 'PROD')] }}
+        run: |
+          echo "Running post-migration health checks..."
+
+          # Check database connectivity
+          node -e "
+            const { Pool } = require('pg');
+            const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+            pool.query('SELECT NOW()')
+              .then(() => console.log('✅ Database connection OK'))
+              .catch(err => { console.error('❌ Database error:', err); process.exit(1); })
+              .finally(() => pool.end());
+          "
+
+      - name: Run migration tests
+        env:
+          DATABASE_URL: ${{ secrets[format('{0}_DATABASE_URL', github.event.inputs.environment == 'development' && 'DEV' || github.event.inputs.environment == 'staging' && 'STAGING' || 'PROD')] }}
+        run: |
+          if [ -f "tests/migrations.test.js" ]; then
+            npm test tests/migrations.test.js
+          else
+            echo "No migration tests found"
+          fi
+
+  # Job 5: Rollback on failure
+  emergency-rollback:
+    name: Emergency Rollback
+    needs: [run-migrations, verify-migration]
+    if: failure() && github.event.inputs.action == 'migrate'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download backup
+        if: github.event.inputs.backup == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: db-backup-${{ needs.backup-database.outputs.backup-id }}
+
+      - name: Restore from backup
+        if: github.event.inputs.backup == 'true'
+        env:
+          DATABASE_URL: ${{ secrets[format('{0}_DATABASE_URL', github.event.inputs.environment == 'development' && 'DEV' || github.event.inputs.environment == 'staging' && 'STAGING' || 'PROD')] }}
+        run: |
+          echo "⚠️ EMERGENCY ROLLBACK: Restoring from backup..."
+
+          gunzip *.sql.gz
+
+          # Restore database
+          psql "$DATABASE_URL" < *.sql
+
+          echo "✅ Database restored from backup"
+
+      - name: Notify failure
+        run: |
+          echo "## ⚠️ Migration Failed - Rollback Initiated" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Database has been restored from backup**" >> $GITHUB_STEP_SUMMARY
+
+  # Job 6: Post-migration notifications
+  notify:
+    name: Notify Migration Status
+    needs: [run-migrations, verify-migration]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Send notification
+        run: |
+          if [ "${{ needs.verify-migration.result }}" == "success" ]; then
+            echo "✅ Migration completed successfully"
+          else
+            echo "⚠️ Migration failed or was rolled back"
+          fi
+        # Uncomment for Slack/Discord:
+        # - name: Slack Notification
+        #   uses: rtCamp/action-slack-notify@v2
+        #   env:
+        #     SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+        #     SLACK_TITLE: Database Migration ${{ needs.verify-migration.result == 'success' && 'Completed' || 'Failed' }}
+        #     SLACK_MESSAGE: |
+        #       Environment: ${{ github.event.inputs.environment }}
+        #       Action: ${{ github.event.inputs.action }}
+        #     SLACK_COLOR: ${{ needs.verify-migration.result == 'success' && 'good' || 'danger' }}

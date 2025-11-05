@@ -4,9 +4,12 @@ import "./globals.css";
 import Link from "next/link";
 import { AuthProvider } from "@/components/AuthProvider";
 import { SmithProfile } from "@/components/SmithProfile";
-import { ProtectedNavigation, AuthenticationButton } from "@/components/ProtectedNavigation";
+import { ProtectedNavigation } from "@/components/ProtectedNavigation";
+import { UserMenu } from "@/components/UserMenu";
+import { MobileMenu } from "@/components/MobileMenu";
 import { DemoModeProvider } from "@/components/DemoModeProvider";
 import { ApolloProviderWrapper } from "@/components/ApolloProvider";
+import { ToastProvider } from "@/components/ToastProvider";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -26,6 +29,7 @@ export default function RootLayout({
         <ApolloProviderWrapper>
           <AuthProvider>
             <DemoModeProvider>
+              <ToastProvider />
               <div className="min-h-screen bg-gray-50">
             <nav className="bg-white shadow-sm">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -40,7 +44,10 @@ export default function RootLayout({
                   </div>
                   <div className="flex items-center space-x-4">
                     <SmithProfile />
-                    <AuthenticationButton />
+                    <div className="hidden sm:block">
+                      <UserMenu />
+                    </div>
+                    <MobileMenu />
                   </div>
                 </div>
               </div>

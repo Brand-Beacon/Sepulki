@@ -1,0 +1,103 @@
+name: Code Quality
+
+on:
+  pull_request:
+    branches:
+      - main
+      - master
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  # Security scanning
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Run npm audit
+        run: |
+          if [ -f "app/package.json" ]; then
+            cd app && npm audit --audit-level=moderate
+          fi
+          for service in services/*/; do
+            if [ -f "$service/package.json" ]; then
+              cd "$service" && npm audit --audit-level=moderate && cd ../..
+            fi
+          done
+
+  # Dependency check
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          deny-licenses: GPL-3.0, AGPL-3.0
+
+  # Code quality metrics
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm install -g eslint prettier
+
+      - name: Run ESLint
+        run: |
+          if [ -f "app/.eslintrc.json" ] || [ -f "app/.eslintrc.js" ]; then
+            cd app && npx eslint . --ext .js,.jsx,.ts,.tsx --format json --output-file ../eslint-report.json || true
+          fi
+
+      - name: Run Prettier check
+        run: |
+          if [ -f "app/.prettierrc" ]; then
+            cd app && npx prettier --check "**/*.{js,jsx,ts,tsx,json,css,md}" || true
+          fi
+
+      - name: Upload ESLint results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eslint-results
+          path: eslint-report.json
+          retention-days: 30

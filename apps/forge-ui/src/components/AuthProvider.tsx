@@ -160,33 +160,53 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [checkLocalSession])
 
   const signOut = async () => {
-    setSmith(null)
-    
-    // Update global auth state to reflect signed out status
-    if (typeof window !== 'undefined') {
-      (window as any).__SEPULKI_AUTH__ = { smith: null, authMode, staySignedOut: true };
-    }
-    
-    if (authMode === 'real') {
-      // Production: NextAuth.js signOut
-      // signOut() from next-auth/react
-      router.push('/auth/signin')
-    } else if (authMode === 'mock') {
-      // Development: Local auth service signOut
-      try {
-        const authUrl = env.localAuthUrl || 'http://127.0.0.1:4446'
-        await fetch(`${authUrl}/auth/signout`, {
-          method: 'POST',
-          credentials: 'include'
-        })
-        console.log('Signed out via local auth service')
+    try {
+      setSmith(null)
+
+      // Update global auth state to reflect signed out status
+      if (typeof window !== 'undefined') {
+        (window as any).__SEPULKI_AUTH__ = { smith: null, authMode, staySignedOut: true };
+      }
+
+      if (authMode === 'real') {
+        // Production: NextAuth.js signOut
+        // signOut() from next-auth/react
         router.push('/auth/signin')
-      } catch (error) {
-        console.error('Local auth signout failed:', error)
-        // Fallback: just redirect to signin
-        console.log('Staying signed out due to service unavailability')
+      } else if (authMode === 'mock') {
+        // Development: Local auth service signOut
+        try {
+          // Use same hostname as current origin for cookie sharing
+          const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost'
+          const authUrl = `http://${hostname}:4446`
+
+          const response = await fetch(`${authUrl}/auth/signout`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          })
+
+          if (!response.ok) {
+            throw new Error(`Signout failed with status: ${response.status}`)
+          }
+
+          console.log('✓ Signed out successfully via local auth service')
+          router.push('/auth/signin')
+        } catch (error) {
+          console.error('Local auth signout failed:', error)
+          // Clear local state and redirect even if service call fails
+          console.log('⚠ Redirecting to signin despite service error (client state cleared)')
+          router.push('/auth/signin')
+        }
+      } else {
+        // No auth mode configured, just redirect
         router.push('/auth/signin')
       }
+    } catch (error) {
+      console.error('Unexpected error during signout:', error)
+      // Always redirect to signin on any error
+      router.push('/auth/signin')
     }
   }
 

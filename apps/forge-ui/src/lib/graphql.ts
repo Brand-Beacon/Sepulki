@@ -351,4 +351,227 @@ export async function deleteSepulka(id: string): Promise<{ success: boolean }> {
   return response.data!.deleteSepulka;
 }
 
+// Task Management GraphQL Operations
+export const GET_FLEETS_QUERY = `
+  query GetFleets {
+    fleets(limit: 100) {
+      id
+      name
+      description
+      status
+      robots {
+        id
+        name
+        status
+        batteryLevel
+        healthScore
+      }
+    }
+  }
+`;
+
+export const GET_ROBOTS_QUERY = `
+  query GetRobots($fleetId: ID, $status: RobotStatus) {
+    robots(fleetId: $fleetId, status: $status, limit: 100) {
+      id
+      name
+      sepulkaId
+      fleetId
+      status
+      batteryLevel
+      healthScore
+      lastSeen
+    }
+  }
+`;
+
+export const DISPATCH_TASK_MUTATION = `
+  mutation DispatchTask($fleetId: ID!, $input: TaskInput!) {
+    dispatchTask(fleetId: $fleetId, input: $input) {
+      task {
+        id
+        name
+        description
+        type
+        parameters
+        status
+        priority
+        scheduledAt
+        createdAt
+        createdBy {
+          id
+          name
+          email
+        }
+        assignedRobots {
+          id
+          name
+          status
+        }
+      }
+      assignments {
+        taskId
+        robotId
+        confidence
+        estimatedDuration
+        assignedAt
+      }
+      errors {
+        code
+        message
+        field
+      }
+    }
+  }
+`;
+
+export const GET_TASKS_QUERY = `
+  query GetTasks($filter: TaskFilter, $limit: Int, $offset: Int) {
+    tasks(filter: $filter, limit: $limit, offset: $offset) {
+      id
+      name
+      description
+      type
+      status
+      priority
+      scheduledAt
+      createdAt
+      assignedRobots {
+        id
+        name
+        status
+      }
+      createdBy {
+        id
+        name
+        email
+      }
+    }
+  }
+`;
+
+export const CANCEL_TASK_MUTATION = `
+  mutation CancelTask($taskId: ID!) {
+    cancelTask(taskId: $taskId) {
+      id
+      status
+    }
+  }
+`;
+
+// Type-safe task management functions
+export interface TaskInput {
+  name: string;
+  description?: string;
+  type: string;
+  parameters?: Record<string, any>;
+  priority?: string;
+  scheduledAt?: string;
+}
+
+export interface DispatchTaskResponse {
+  task?: {
+    id: string;
+    name: string;
+    description?: string;
+    type: string;
+    parameters?: Record<string, any>;
+    status: string;
+    priority: string;
+    scheduledAt?: string;
+    createdAt: string;
+    createdBy: {
+      id: string;
+      name: string;
+      email: string;
+    };
+    assignedRobots?: Array<{
+      id: string;
+      name: string;
+      status: string;
+    }>;
+  };
+  assignments?: Array<{
+    taskId: string;
+    robotId: string;
+    confidence: number;
+    estimatedDuration?: number;
+    assignedAt: string;
+  }>;
+  errors?: Array<{
+    code: string;
+    message: string;
+    field?: string;
+  }>;
+}
+
+export async function dispatchTask(
+  fleetId: string,
+  input: TaskInput
+): Promise<DispatchTaskResponse> {
+  const response = await graphqlClient.request<{
+    dispatchTask: DispatchTaskResponse;
+  }>({
+    query: DISPATCH_TASK_MUTATION,
+    variables: { fleetId, input },
+  });
+
+  if (response.errors) {
+    throw new Error(`GraphQL Error: ${response.errors[0].message}`);
+  }
+
+  return response.data!.dispatchTask;
+}
+
+export async function getFleets() {
+  const response = await graphqlClient.request({
+    query: GET_FLEETS_QUERY,
+  });
+
+  if (response.errors) {
+    throw new Error(`GraphQL Error: ${response.errors[0].message}`);
+  }
+
+  return response.data.fleets;
+}
+
+export async function getRobots(fleetId?: string, status?: string) {
+  const response = await graphqlClient.request({
+    query: GET_ROBOTS_QUERY,
+    variables: { fleetId, status },
+  });
+
+  if (response.errors) {
+    throw new Error(`GraphQL Error: ${response.errors[0].message}`);
+  }
+
+  return response.data.robots;
+}
+
+export async function getTasks(filter?: any, limit = 50, offset = 0) {
+  const response = await graphqlClient.request({
+    query: GET_TASKS_QUERY,
+    variables: { filter, limit, offset },
+  });
+
+  if (response.errors) {
+    throw new Error(`GraphQL Error: ${response.errors[0].message}`);
+  }
+
+  return response.data.tasks;
+}
+
+export async function cancelTask(taskId: string) {
+  const response = await graphqlClient.request({
+    query: CANCEL_TASK_MUTATION,
+    variables: { taskId },
+  });
+
+  if (response.errors) {
+    throw new Error(`GraphQL Error: ${response.errors[0].message}`);
+  }
+
+  return response.data.cancelTask;
+}
+
 export { graphqlClient };

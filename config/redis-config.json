@@ -1,0 +1,34 @@
+{
+  "provider": "upstash",
+  "region": "us-east-1",
+  "connection": {
+    "maxRetries": 3,
+    "retryDelay": 1000,
+    "connectTimeout": 10000,
+    "tls": {
+      "enabled": true
+    }
+  },
+  "caching": {
+    "sessions": {
+      "prefix": "session:",
+      "ttl": 86400,
+      "enabled": true
+    },
+    "graphql": {
+      "prefix": "graphql:",
+      "ttl": 300,
+      "enabled": true
+    },
+    "telemetry": {
+      "prefix": "telemetry:",
+      "ttl": 60,
+      "enabled": true
+    }
+  },
+  "pubsub": {
+    "notifications": {
+      "channel": "notifications"
+    }
+  }
+}

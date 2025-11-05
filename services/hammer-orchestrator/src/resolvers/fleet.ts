@@ -384,6 +384,13 @@ export const fleetResolvers = {
   },
 
   Robot: {
+    // Map snake_case database columns to camelCase GraphQL fields
+    sepulkaId: (parent: any) => parent.sepulka_id,
+    fleetId: (parent: any) => parent.fleet_id,
+    lastSeen: (parent: any) => parent.last_seen,
+    batteryLevel: (parent: any) => parent.battery_level,
+    healthScore: (parent: any) => parent.health_score,
+
     async currentIngot(parent: any, args: any, context: Context) {
       if (!parent.current_ingot_id) return null;
       

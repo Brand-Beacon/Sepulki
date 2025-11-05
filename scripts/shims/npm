@@ -1,0 +1,36 @@
+#!/usr/bin/env node
+
+const { spawn } = require('node:child_process');
+const path = require('node:path');
+
+const args = process.argv.slice(2);
+const realNpm = process.env.NPM_SHIM_REAL_NPM;
+
+if (!realNpm) {
+  console.error('[npm-shim] Missing NPM_SHIM_REAL_NPM');
+  process.exit(1);
+}
+
+if (args.length >= 3 && args[0] === 'config' && args[1] === 'get' && args[2] === 'registry') {
+  const registry = process.env.NPM_SHIM_REGISTRY || 'https://registry.npmjs.org/';
+  process.stdout.write(`${registry}\n`);
+  process.exit(0);
+}
+
+const child = spawn(process.execPath, [realNpm, ...args], {
+  stdio: 'inherit',
+  env: process.env,
+});
+
+child.on('exit', (code, signal) => {
+  if (signal) {
+    process.kill(process.pid, signal);
+    return;
+  }
+  process.exit(code ?? 0);
+});
+
+child.on('error', (error) => {
+  console.error('[npm-shim] Failed to proxy npm command:', error);
+  process.exit(1);
+});

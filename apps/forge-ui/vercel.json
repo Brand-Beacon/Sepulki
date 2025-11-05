@@ -1,0 +1,43 @@
+{
+  "version": 2,
+  "name": "sepulki-forge-ui",
+  "regions": ["iad1"],
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1",
+      "headers": {
+        "Cache-Control": "no-store, no-cache, must-revalidate, private"
+      }
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/$1"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production",
+    "NEXT_TELEMETRY_DISABLED": "1"
+  },
+  "build": {
+    "env": {
+      "NODE_ENV": "production"
+    }
+  },
+  "functions": {
+    "app/**/*.tsx": {
+      "memory": 1024,
+      "maxDuration": 10
+    },
+    "api/**/*.ts": {
+      "memory": 512,
+      "maxDuration": 10
+    }
+  }
+}

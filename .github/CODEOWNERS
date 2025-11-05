@@ -1,0 +1,37 @@
+# Code Owners
+# Users/teams mentioned here will automatically be requested for review
+# when someone opens a pull request modifying matching files
+
+# Default owners for everything in the repo
+* @${{ github.repository_owner }}
+
+# Frontend code
+/app/ @${{ github.repository_owner }}
+*.tsx @${{ github.repository_owner }}
+*.jsx @${{ github.repository_owner }}
+
+# Backend services
+/services/ @${{ github.repository_owner }}
+
+# CI/CD workflows (require extra scrutiny)
+/.github/workflows/ @${{ github.repository_owner }}
+/.github/workflows/*.yml @${{ github.repository_owner }}
+
+# Database migrations (require careful review)
+/migrations/ @${{ github.repository_owner }}
+/prisma/ @${{ github.repository_owner }}
+
+# Documentation
+*.md @${{ github.repository_owner }}
+/docs/ @${{ github.repository_owner }}
+
+# Configuration files
+package.json @${{ github.repository_owner }}
+pnpm-lock.yaml @${{ github.repository_owner }}
+tsconfig.json @${{ github.repository_owner }}
+.eslintrc.* @${{ github.repository_owner }}
+
+# Docker and deployment
+Dockerfile @${{ github.repository_owner }}
+docker-compose.yml @${{ github.repository_owner }}
+vercel.json @${{ github.repository_owner }}

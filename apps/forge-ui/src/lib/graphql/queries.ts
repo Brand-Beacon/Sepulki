@@ -296,3 +296,25 @@ export const FACTORY_FLOOR_QUERY = gql`
   }
 `
 
+// Robot Telemetry Query for historical data
+export const ROBOT_TELEMETRY_QUERY = gql`
+  query RobotTelemetry($robotId: ID!, $timeRange: String, $limit: Int) {
+    robotTelemetry(robotId: $robotId, timeRange: $timeRange, limit: $limit) {
+      timestamp
+      batteryLevel
+      healthScore
+      status
+      performance {
+        speed
+        efficiency
+        uptime
+      }
+      metrics {
+        cpu
+        memory
+        temperature
+      }
+    }
+  }
+`
+

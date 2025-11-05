@@ -236,11 +236,111 @@ mutation ForgeSepulka($input: ForgeInput!) {
 
 ## 🚢 Deployment
 
+### Production Deployment (YC Demo Ready)
+
+Sepulki is configured for cost-effective deployment using:
+
+| Service | Platform | Cost | Purpose |
+|---------|----------|------|---------|
+| Frontend | Vercel | Free | Next.js app + CDN |
+| Backend | Railway | $10-15/mo | 2 services |
+| Database | Neon | Free | PostgreSQL |
+| Cache | Upstash | Free | Redis |
+
+**Total: ~$10-15/month** - Perfect for YC demos and MVP!
+
+#### Quick Deployment
+
+```bash
+# 1. Validate configuration
+./scripts/validate-deployment.sh
+
+# 2. Deploy all services
+./scripts/quick-deploy.sh
+```
+
+#### Manual Deployment Steps
+
+1. **Create Accounts**:
+   - [Vercel](https://vercel.com/signup) - Frontend hosting
+   - [Railway](https://railway.app/) - Backend services
+   - [Neon](https://neon.tech/) - PostgreSQL database
+   - [Upstash](https://upstash.com/) - Redis cache
+
+2. **Configure Environment Variables**:
+   ```bash
+   # Generate secrets
+   openssl rand -base64 32  # For JWT_SECRET
+   openssl rand -base64 32  # For SESSION_SECRET
+   openssl rand -base64 32  # For NEXTAUTH_SECRET
+   ```
+
+3. **Deploy Database**:
+   ```bash
+   export DATABASE_URL="your-neon-connection-string"
+   ./infrastructure/scripts/neon-setup.sh
+   ```
+
+4. **Deploy Backend Services**:
+   ```bash
+   cd services/hammer-orchestrator
+   railway up
+
+   cd services/local-auth
+   railway up
+   ```
+
+5. **Deploy Frontend**:
+   ```bash
+   cd apps/forge-ui
+   vercel --prod
+   ```
+
+#### CI/CD Automation
+
+GitHub Actions workflows automatically deploy on push to `master`:
+
+- `.github/workflows/deploy-frontend.yml` - Vercel deployment
+- `.github/workflows/deploy-backend.yml` - Railway deployment
+- `.github/workflows/run-migrations.yml` - Database migrations
+
+**Required GitHub Secrets**:
+- `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+- `RAILWAY_TOKEN`
+- `NEON_DATABASE_URL_DEV`, `NEON_DATABASE_URL_PROD`
+
+#### Deployment Documentation
+
+For comprehensive deployment instructions, see:
+
+- **Complete Guide**: [docs/DEPLOYMENT_COMPLETE.md](./docs/DEPLOYMENT_COMPLETE.md)
+- **Checklist**: [docs/deployment-checklist.md](./docs/deployment-checklist.md)
+- **Quick Reference**: [DEPLOYMENT_STATUS.md](./DEPLOYMENT_STATUS.md)
+
+#### Health Checks
+
+Verify deployment health:
+
+```bash
+# Frontend
+curl https://your-domain.vercel.app/api/health
+
+# Hammer Orchestrator
+curl https://your-hammer.railway.app/health
+
+# Local Auth
+curl https://your-auth.railway.app/health
+```
+
 ### Local Development
 Uses Docker Compose for local infrastructure
 
-### Production
-Kubernetes manifests provided in `infrastructure/kubernetes/`
+```bash
+npm run docker:up
+```
+
+### Alternative: Kubernetes
+For enterprise deployments, Kubernetes manifests are in `infrastructure/kubernetes/`
 
 ```bash
 kubectl apply -f infrastructure/kubernetes/

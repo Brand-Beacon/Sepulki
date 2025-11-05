@@ -5,6 +5,7 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import { createServer } from 'http';
+import { createServer as createNetServer } from 'net';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 
@@ -13,16 +14,53 @@ import { resolvers } from './resolvers';
 import { setupDataLoaders } from './dataloaders';
 import { AuthenticationError } from './errors';
 import { FileStorageService } from './services/fileStorage';
+import { TelemetryIntegrationService } from './services/telemetry-integration';
+import { Pool } from 'pg';
+
+// Security middleware imports
+import { applySecurityMiddleware, requestSizeLimit, requestTimeout } from './middleware/security';
+import { applyRateLimiting, closeRateLimitStore } from './middleware/rate-limit';
 
 const typeDefs = readFileSync(
   join(__dirname, '../../../packages/graphql-schema/schema.graphql'),
   'utf8'
 );
 
+// Initialize telemetry service (global instance)
+let telemetryService: TelemetryIntegrationService | null = null;
+
 async function startServer() {
   // Create Express app
   const app = express();
   const httpServer = createServer(app);
+
+  // Configure request timeout
+  httpServer.timeout = requestTimeout;
+
+  // Initialize database pool for telemetry service
+  const db = new Pool({
+    connectionString: process.env.DATABASE_URL || 'postgresql://smith:forge_dev@localhost:5432/sepulki',
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 5000,
+  });
+
+  // Initialize telemetry integration service
+  telemetryService = new TelemetryIntegrationService(db);
+
+  // Start telemetry generation if enabled
+  const enableTelemetry = process.env.ENABLE_TELEMETRY !== 'false'; // Enabled by default
+  if (enableTelemetry) {
+    console.log('🚀 Starting telemetry generation...');
+    try {
+      await telemetryService.startTelemetryGeneration();
+    } catch (error) {
+      console.error('⚠️  Failed to start telemetry generation:', error);
+      console.log('📝 Server will continue without telemetry');
+    }
+  } else {
+    console.log('⏸️  Telemetry generation disabled via ENABLE_TELEMETRY=false');
+  }
 
   // Create Apollo Server
   const server = new ApolloServer({
@@ -35,23 +73,15 @@ async function startServer() {
 
   await server.start();
 
-  // Apply CORS and JSON parsing globally - Allow both localhost and 127.0.0.1
-  app.use(cors<cors.CorsRequest>({
-    origin: (origin, callback) => {
-      // Allow requests from localhost:3000 or 127.0.0.1:3000
-      const allowedOrigins = [
-        'http://localhost:3000',
-        'http://127.0.0.1:3000',
-      ];
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
-    credentials: true,
-  }))
-  app.use(express.json())
+  // Apply security middleware (includes Helmet, CORS, rate limiting, etc.)
+  applySecurityMiddleware(app);
+
+  // Apply rate limiting
+  applyRateLimiting(app);
+
+  // Apply JSON parsing with size limit
+  app.use(express.json({ limit: requestSizeLimit }));
+  app.use(express.urlencoded({ extended: true, limit: requestSizeLimit }));
 
   // Apply middleware
   app.use(
@@ -336,7 +366,27 @@ async function startServer() {
         }
 
         // Create factory floor record
-        const insertQuery = `
+        // Get creator ID and validate it exists - if not available or invalid, let database use default
+        let creatorId = context.smith?.id || context.session?.smithId
+
+        // Validate that the smith ID actually exists in the database
+        if (creatorId) {
+          try {
+            const smithCheck = await client.query(
+              'SELECT id FROM smiths WHERE id = $1',
+              [creatorId]
+            )
+            if (smithCheck.rows.length === 0) {
+              console.warn(`Smith ID ${creatorId} not found in database, using default`)
+              creatorId = undefined
+            }
+          } catch (err) {
+            console.error('Error validating smith ID:', err)
+            creatorId = undefined
+          }
+        }
+
+        const insertQuery = creatorId ? `
           INSERT INTO factory_floors (
             name, description, blueprint_url, blueprint_type,
             width_meters, height_meters, scale_factor,
@@ -344,9 +394,17 @@ async function startServer() {
           )
           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
           RETURNING *
+        ` : `
+          INSERT INTO factory_floors (
+            name, description, blueprint_url, blueprint_type,
+            width_meters, height_meters, scale_factor,
+            origin_x, origin_y
+          )
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING *
         `
-        
-        const floorResult = await client.query(insertQuery, [
+
+        const insertParams = creatorId ? [
           name,
           description || null,
           uploadResult.url,
@@ -356,8 +414,20 @@ async function startServer() {
           parseFloat(scaleFactor),
           originX ? parseFloat(originX) : 0,
           originY ? parseFloat(originY) : 0,
-          context.smith?.id || context.session?.smithId
-        ])
+          creatorId
+        ] : [
+          name,
+          description || null,
+          uploadResult.url,
+          blueprintType,
+          parseFloat(widthMeters),
+          parseFloat(heightMeters),
+          parseFloat(scaleFactor),
+          originX ? parseFloat(originX) : 0,
+          originY ? parseFloat(originY) : 0
+        ]
+
+        const floorResult = await client.query(insertQuery, insertParams)
 
         await client.query('COMMIT')
         
@@ -396,29 +466,134 @@ async function startServer() {
 
   // Health check endpoint
   app.get('/health', (req, res) => {
-    res.json({ 
+    res.json({
       status: 'ok',
       service: 'hammer-orchestrator',
       version: process.env.npm_package_version || '1.0.0',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      telemetry: telemetryService ? telemetryService.getStats() : { enabled: false }
     });
   });
 
-  const PORT = process.env.PORT || 4000;
-  
-  httpServer.listen(PORT, () => {
-    console.log(`🔨 Hammer Orchestrator ready at http://localhost:${PORT}/graphql`);
+  // Telemetry control endpoints
+  app.get('/api/telemetry/stats', (req, res) => {
+    if (!telemetryService) {
+      return res.status(503).json({ error: 'Telemetry service not available' });
+    }
+
+    res.json(telemetryService.getStats());
+  });
+
+  app.post('/api/telemetry/config', express.json(), async (req, res) => {
+    if (!telemetryService) {
+      return res.status(503).json({ error: 'Telemetry service not available' });
+    }
+
+    try {
+      const config = req.body;
+      telemetryService.updateConfig(config);
+      res.json({
+        success: true,
+        message: 'Telemetry configuration updated',
+        config: telemetryService.getStats()
+      });
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : 'Failed to update config'
+      });
+    }
+  });
+
+  app.post('/api/telemetry/scenario', express.json(), async (req, res) => {
+    if (!telemetryService) {
+      return res.status(503).json({ error: 'Telemetry service not available' });
+    }
+
+    try {
+      const { fleetId, scenarioType } = req.body;
+
+      if (!fleetId || !scenarioType) {
+        return res.status(400).json({
+          error: 'fleetId and scenarioType are required'
+        });
+      }
+
+      await telemetryService.createScenario(fleetId, scenarioType);
+      res.json({
+        success: true,
+        message: `Scenario ${scenarioType} created for fleet ${fleetId}`,
+        scenario: telemetryService.getScenarioManager().getScenario(fleetId)
+      });
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : 'Failed to create scenario'
+      });
+    }
+  });
+
+  const preferredPort = parseInt(process.env.PORT || '4000', 10);
+  const port = await findAvailablePort(preferredPort);
+
+  if (port !== preferredPort) {
+    console.warn(`⚠️  Port ${preferredPort} in use, falling back to ${port}`);
+  }
+
+  httpServer.listen(port, () => {
+    console.log(`🔨 Hammer Orchestrator ready at http://localhost:${port}/graphql`);
+  });
+}
+
+async function findAvailablePort(preferredPort: number, attempts = 5): Promise<number> {
+  let port = preferredPort;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    if (await isPortAvailable(port)) {
+      return port;
+    }
+    port += 1;
+  }
+
+  throw new Error(`Unable to find an available port starting from ${preferredPort}`);
+}
+
+function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const tester = createNetServer();
+
+    tester.once('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE' || err.code === 'EACCES') {
+        resolve(false);
+      } else {
+        reject(err);
+      }
+    });
+
+    tester.once('listening', () => {
+      tester.close(() => resolve(true));
+    });
+
+    tester.listen(port, '0.0.0.0');
   });
 }
 
 // Handle shutdown gracefully
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully');
+  if (telemetryService) {
+    console.log('⏹️  Stopping telemetry service...');
+    telemetryService.stopTelemetryGeneration();
+  }
+  await closeRateLimitStore();
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully');
+  if (telemetryService) {
+    console.log('⏹️  Stopping telemetry service...');
+    telemetryService.stopTelemetryGeneration();
+  }
+  await closeRateLimitStore();
   process.exit(0);
 });
 

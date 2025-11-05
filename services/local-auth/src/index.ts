@@ -7,6 +7,16 @@ import { Pool } from 'pg';
 import Redis from 'ioredis';
 import { v4 as uuidv4 } from 'uuid';
 
+// Security middleware imports
+import {
+  applySecurityMiddleware,
+  loginRateLimiter,
+  registrationRateLimiter,
+  passwordResetRateLimiter,
+  csrfTokenEndpoint,
+  doubleCsrfProtection,
+} from './middleware/security';
+
 const app = express();
 const PORT = process.env.PORT || 4446;
 
@@ -21,34 +31,31 @@ const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 // JWT secret
 const JWT_SECRET = process.env.JWT_SECRET || 'local-auth-jwt-secret';
 
-// Middleware - Allow both localhost and 127.0.0.1
+// Apply security middleware (includes Helmet, rate limiting, sanitization, etc.)
+applySecurityMiddleware(app);
+
+// CORS configuration for local development
 app.use(cors({
-  origin: (origin, callback) => {
-    // Allow requests from localhost:3000 or 127.0.0.1:3000
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'http://127.0.0.1:3000',
-    ];
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-csrf-token'],
+  exposedHeaders: ['set-cookie']
 }));
+
+// Additional middleware
 app.use(cookieParser());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10kb' })); // Strict size limit for auth service
+app.use(express.urlencoded({ extended: true, limit: '10kb' }));
 
 // Serve login page (mimics Auth.js sign-in page)
 app.get('/auth/signin', (req, res) => {
-  // Use 127.0.0.1 to match auth service domain for cookie sharing
-  const defaultCallbackUrl = 'http://127.0.0.1:3000/';
+  // Use localhost for consistent cookie domain
+  const defaultCallbackUrl = 'http://localhost:3000/';
   const { callbackUrl = defaultCallbackUrl } = req.query;
-  // Normalize callback URL to use 127.0.0.1 instead of localhost
-  const normalizedCallbackUrl = typeof callbackUrl === 'string' 
-    ? callbackUrl.replace('localhost', '127.0.0.1')
+  // Use callback URL as provided (no normalization needed)
+  const normalizedCallbackUrl = typeof callbackUrl === 'string'
+    ? callbackUrl
     : defaultCallbackUrl;
   
   res.send(`
@@ -223,14 +230,14 @@ app.get('/auth/signin', (req, res) => {
                 const formData = new FormData(e.target);
                 
                 try {
-                    const callbackUrl = formData.get('callbackUrl') || 'http://127.0.0.1:3000/';
+                    const callbackUrl = formData.get('callbackUrl') || 'http://localhost:3000/';
                     const response = await fetch('/auth/signin', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             email: formData.get('email'),
                             password: formData.get('password'),
-                            callbackUrl: callbackUrl.replace('localhost', '127.0.0.1')
+                            callbackUrl: callbackUrl
                         }),
                         credentials: 'include'
                     });
@@ -253,8 +260,11 @@ app.get('/auth/signin', (req, res) => {
   `);
 });
 
-// Login endpoint (mimics Auth.js callback)
-app.post('/auth/signin', async (req, res) => {
+// CSRF token endpoint (must be before CSRF protection)
+app.get('/auth/csrf', csrfTokenEndpoint);
+
+// Login endpoint (mimics Auth.js callback) with strict rate limiting
+app.post('/auth/signin', loginRateLimiter, async (req, res) => {
   const { email, password, callbackUrl } = req.body;
 
   try {
@@ -308,27 +318,16 @@ app.post('/auth/signin', async (req, res) => {
     }, JWT_SECRET, { expiresIn: '24h' });
 
     // Set session cookie (mimics NextAuth.js)
-    // Extract hostname from callback URL to set correct domain
+    // Explicitly set domain to localhost for cookie sharing across ports
     let cookieOptions: any = {
       httpOnly: true,
       secure: false, // true in production
       sameSite: 'lax',
+      domain: 'localhost', // Explicitly set domain for cookie sharing
       maxAge: 24 * 60 * 60 * 1000,
       path: '/'
     };
-    
-    // Try to set domain based on callback URL to ensure cookie is accessible
-    try {
-      const callbackUrlObj = new URL(callbackUrl || 'http://localhost:3000/');
-      const hostname = callbackUrlObj.hostname;
-      // Only set domain for localhost/127.0.0.1, not for IP addresses (which don't work with cookies)
-      if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        // Don't set domain - let browser handle it based on origin
-      }
-    } catch (e) {
-      // If URL parsing fails, continue without domain
-    }
-    
+
     res.cookie('next-auth.session-token', sessionId, cookieOptions);
 
     // Update last login (same as production)
@@ -337,14 +336,10 @@ app.post('/auth/signin', async (req, res) => {
       [user.id]
     );
 
-    // Use the provided callback URL or default to origin-based callback
-    // Don't normalize - use the exact callback URL provided to match cookie domain
-    const defaultCallbackUrl = callbackUrl || 'http://localhost:3000/';
-    const normalizedCallbackUrl = defaultCallbackUrl;
-    
-    res.json({ 
-      success: true, 
-      callbackUrl: normalizedCallbackUrl,
+    // Use the provided callback URL or default to localhost
+    res.json({
+      success: true,
+      callbackUrl: callbackUrl || 'http://localhost:3000/',
       token // For GraphQL API calls
     });
 
@@ -390,6 +385,12 @@ app.get('/auth/session', async (req, res) => {
   }
 });
 
+// Registration endpoint with rate limiting (if you add registration in the future)
+// app.post('/auth/register', registrationRateLimiter, async (req, res) => { ... });
+
+// Password reset endpoint with rate limiting (if you add password reset in the future)
+// app.post('/auth/reset-password', passwordResetRateLimiter, async (req, res) => { ... });
+
 // Sign out endpoint (mimics Auth.js)
 app.post('/auth/signout', async (req, res) => {
   const sessionToken = req.cookies['next-auth.session-token'];
@@ -398,15 +399,13 @@ app.post('/auth/signout', async (req, res) => {
     await redis.del(`session:${sessionToken}`);
   }
 
-  res.clearCookie('next-auth.session-token');
+  res.clearCookie('next-auth.session-token', {
+    domain: 'localhost',
+    path: '/'
+  });
   res.json({ success: true, url: 'http://localhost:3000' });
 });
 
-// CSRF token endpoint (mimics Auth.js)
-app.get('/auth/csrf', (req, res) => {
-  const csrfToken = uuidv4();
-  res.json({ csrfToken });
-});
 
 // Providers endpoint (mimics Auth.js)
 app.get('/auth/providers', (req, res) => {

@@ -81,9 +81,9 @@ function createEnvironmentConfig(): EnvironmentConfig {
   const isaacSimPort = process.env.NEXT_PUBLIC_ISAAC_SIM_PORT ||
     '8211'
 
-  // Local Auth Service URL (use 127.0.0.1 to avoid IPv6 issues)
+  // Local Auth Service URL (use localhost for consistent cookie domain)
   const localAuthUrl = process.env.NEXT_PUBLIC_LOCAL_AUTH_URL ||
-    'http://127.0.0.1:4446'
+    'http://localhost:4446'
 
   // Determine auth providers available
   const authProviders: string[] = []

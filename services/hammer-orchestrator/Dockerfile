@@ -1,36 +1,28 @@
-FROM node:18-alpine
-
-# Install dependencies for native modules
+# Multi-stage Dockerfile for Hammer Orchestrator
+FROM node:18-alpine AS builder
 RUN apk add --no-cache python3 make g++
-
-# Set working directory
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
-COPY packages/shared-types/package*.json ./packages/shared-types/
-COPY packages/graphql-schema/package*.json ./packages/graphql-schema/
-
-# Install dependencies
-RUN npm ci --only=production
-
-# Copy source code
-COPY packages/ ./packages/
-COPY services/hammer-orchestrator/ ./services/hammer-orchestrator/
-
-# Build shared packages
-RUN cd packages/shared-types && npm run build
-
-# Build the service
+COPY packages/shared-types ./packages/shared-types/
+COPY services/hammer-orchestrator/package*.json ./services/hammer-orchestrator/
+RUN npm ci --workspace=@sepulki/hammer-orchestrator --include-workspace-root
+COPY services/hammer-orchestrator ./services/hammer-orchestrator/
 WORKDIR /app/services/hammer-orchestrator
 RUN npm run build
 
-# Expose port
+FROM node:18-alpine AS production
+RUN apk add --no-cache dumb-init
+WORKDIR /app
+COPY package*.json ./
+COPY packages/shared-types ./packages/shared-types/
+COPY services/hammer-orchestrator/package*.json ./services/hammer-orchestrator/
+RUN npm ci --workspace=@sepulki/hammer-orchestrator --include-workspace-root --omit=dev
+COPY --from=builder /app/services/hammer-orchestrator/dist ./services/hammer-orchestrator/dist
+RUN addgroup -g 1001 -S nodejs && adduser -S nodejs -u 1001
+RUN chown -R nodejs:nodejs /app
+USER nodejs
+WORKDIR /app/services/hammer-orchestrator
 EXPOSE 4000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:4000/health || exit 1
-
-# Start the service
-CMD ["npm", "start"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 CMD node -e "require('http').get('http://localhost:4000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "dist/index.js"]
