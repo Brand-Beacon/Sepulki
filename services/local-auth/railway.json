@@ -2,7 +2,10 @@
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
     "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile"
+    "dockerfilePath": "services/local-auth/Dockerfile.railway",
+    "watchPatterns": [
+      "services/local-auth/**"
+    ]
   },
   "deploy": {
     "numReplicas": 1,
@@ -10,13 +13,5 @@
     "restartPolicyMaxRetries": 10,
     "healthcheckPath": "/health",
     "healthcheckTimeout": 300
-  },
-  "service": {
-    "name": "local-auth",
-    "port": 3001
-  },
-  "env": {
-    "NODE_ENV": "production",
-    "PORT": "3001"
   }
 }
