@@ -327,19 +327,25 @@ jobs:
         if: needs.detect-changes.outputs.hammer == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE: ${{ secrets.RAILWAY_SERVICE_HAMMER_ID }}
+          RAILWAY_ENVIRONMENT: ${{ github.ref == 'refs/heads/master' && secrets.RAILWAY_ENVIRONMENT_PROD_ID || secrets.RAILWAY_ENVIRONMENT_DEV_ID }}
         working-directory: services/hammer-orchestrator
         run: |
           echo "🚀 Deploying hammer-orchestrator to Railway..."
-          railway up
+          echo "Environment: ${{ github.ref == 'refs/heads/master' && 'production' || 'development' }}"
+          railway up --detach
 
       - name: Deploy Local Auth
         if: needs.detect-changes.outputs.auth == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE: ${{ secrets.RAILWAY_SERVICE_AUTH_ID }}
+          RAILWAY_ENVIRONMENT: ${{ github.ref == 'refs/heads/master' && secrets.RAILWAY_ENVIRONMENT_PROD_ID || secrets.RAILWAY_ENVIRONMENT_DEV_ID }}
         working-directory: services/local-auth
         run: |
           echo "🚀 Deploying local-auth to Railway..."
-          railway up
+          echo "Environment: ${{ github.ref == 'refs/heads/master' && 'production' || 'development' }}"
+          railway up --detach
 
       - name: Deploy Video Stream Proxy
         if: needs.detect-changes.outputs.video-proxy == 'true'
@@ -348,7 +354,7 @@ jobs:
         working-directory: services/video-stream-proxy
         run: |
           echo "🚀 Deploying video-stream-proxy to Railway..."
-          railway up
+          railway up --detach
 
       - name: Deployment summary
         run: |

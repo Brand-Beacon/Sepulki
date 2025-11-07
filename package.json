@@ -61,7 +61,9 @@
     "reset": "./scripts/dev-tools.sh reset",
     "sync:cloud-env": "node ./scripts/sync-cloud-env.mjs",
     "deploy": "npm run deploy:backend && npm run deploy:frontend",
-    "deploy:backend": "echo '🚀 Deploying backend services to Railway...' && railway up",
+    "deploy:backend": "npm run deploy:hammer && npm run deploy:auth",
+    "deploy:hammer": "cd services/hammer-orchestrator && railway up --detach",
+    "deploy:auth": "cd services/local-auth && railway up --detach",
     "deploy:frontend": "echo '🚀 Deploying frontend to Vercel...' && cd apps/forge-ui && vercel --prod",
     "deploy:preview": "cd apps/forge-ui && vercel"
   },
