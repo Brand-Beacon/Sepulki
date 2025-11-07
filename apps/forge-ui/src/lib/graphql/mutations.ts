@@ -1,5 +1,86 @@
 import { gql } from '@apollo/client'
 
+// Design & Deployment Mutations
+export const FORGE_SEPULKA_MUTATION = gql`
+  mutation ForgeSepulka($input: ForgeInput!) {
+    forgeSepulka(input: $input) {
+      sepulka {
+        id
+        name
+        description
+        version
+        status
+        pattern {
+          id
+          name
+          category
+        }
+        alloys {
+          id
+          name
+          type
+          specifications
+        }
+        parameters
+        createdAt
+        createdBy {
+          id
+          name
+          email
+        }
+      }
+      errors {
+        code
+        message
+        field
+      }
+    }
+  }
+`
+
+export const CAST_INGOT_MUTATION = gql`
+  mutation CastIngot($sepulkaId: ID!) {
+    castIngot(sepulkaId: $sepulkaId) {
+      ingot {
+        id
+        sepulkaId
+        version
+        buildHash
+        status
+        artifacts {
+          type
+          path
+          checksum
+        }
+        createdAt
+      }
+      errors {
+        code
+        message
+      }
+    }
+  }
+`
+
+export const QUENCH_TO_FLEET_MUTATION = gql`
+  mutation QuenchToFleet($ingotId: ID!, $fleetId: ID!, $rolloutPercent: Int = 100) {
+    quenchToFleet(ingotId: $ingotId, fleetId: $fleetId, rolloutPercent: $rolloutPercent) {
+      deployment {
+        id
+        ingotId
+        fleetId
+        status
+        rolloutPercent
+        createdAt
+      }
+      errors {
+        code
+        message
+      }
+    }
+  }
+`
+
 // Fleet Location Mutations
 export const UPDATE_FLEET_LOCATION_MUTATION = gql`
   mutation UpdateFleetLocation($fleetId: ID!, $coordinates: CoordinatesInput!) {
