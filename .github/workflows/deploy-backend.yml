@@ -315,16 +315,17 @@ jobs:
       (needs.build-auth.result == 'success' || needs.build-auth.result == 'skipped') &&
       (needs.build-video-proxy.result == 'success' || needs.build-video-proxy.result == 'skipped')
     runs-on: ubuntu-latest
-    container: ghcr.io/railwayapp/cli:latest
     environment:
       name: ${{ github.ref == 'refs/heads/master' && 'production' || github.ref == 'refs/heads/staging' && 'staging' || 'development' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
       - name: Deploy Hammer Orchestrator
         if: needs.detect-changes.outputs.hammer == 'true'
-        working-directory: services/hammer-orchestrator
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
@@ -334,7 +335,6 @@ jobs:
 
       - name: Deploy Local Auth
         if: needs.detect-changes.outputs.auth == 'true'
-        working-directory: services/local-auth
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
@@ -344,7 +344,6 @@ jobs:
 
       - name: Deploy Video Stream Proxy
         if: needs.detect-changes.outputs.video-proxy == 'true'
-        working-directory: services/video-stream-proxy
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
