@@ -1,0 +1,23 @@
+{
+  "name": "deployment-validator",
+  "version": "1.0.0",
+  "description": "Production deployment validation suite for Sepulki infrastructure",
+  "main": "deployment-validator.ts",
+  "scripts": {
+    "validate": "ts-node deployment-validator.ts",
+    "validate:watch": "nodemon --exec ts-node deployment-validator.ts",
+    "test": "jest"
+  },
+  "dependencies": {
+    "@vercel/postgres": "^0.5.1",
+    "ioredis": "^5.3.2",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/node-fetch": "^2.6.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "nodemon": "^3.0.2"
+  }
+}

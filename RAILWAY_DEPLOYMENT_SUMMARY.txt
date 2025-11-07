@@ -1,0 +1,113 @@
+╔══════════════════════════════════════════════════════════════════════════╗
+║                  RAILWAY DEPLOYMENT CONFIGURATION                        ║
+║                         Status: READY FOR CONNECTION                     ║
+╚══════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ SERVICES CONFIGURED                                                      │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│ 1. hammer-orchestrator                                                  │
+│    └─ ID: b0f943c3-a4f7-4568-96f4-10ba2f29e1f8                         │
+│    └─ Port: 4000                                                        │
+│    └─ Health: /health                                                   │
+│    └─ Status: ⏳ Awaiting GitHub connection                             │
+│                                                                          │
+│ 2. local-auth                                                           │
+│    └─ ID: 5384e79a-8bcc-4b12-b607-7fc296508abe                         │
+│    └─ Port: 3001                                                        │
+│    └─ Health: /health                                                   │
+│    └─ Status: ⏳ Awaiting GitHub connection                             │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ ENVIRONMENT SETUP                                                        │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│ ✅ Environment variables configured                                      │
+│ ✅ Database connections set                                              │
+│ ✅ JWT secrets configured                                                │
+│ ✅ Service URLs configured                                               │
+│ ✅ Dockerfile.railway created                                            │
+│ ✅ railway.json configured                                               │
+│ ✅ Railway CLI authenticated                                             │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ GITHUB CONFIGURATION                                                     │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│ Repository: Brand-Beacon/Sepulki                                        │
+│ Branch: master                                                          │
+│ Root Directory: / (CRITICAL - monorepo root)                            │
+│ Builder: Dockerfile                                                     │
+│ Dockerfile Path: Dockerfile.railway                                     │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ NEXT STEPS (ACTION REQUIRED)                                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│ 1. Open Railway Dashboard:                                              │
+│    https://railway.app/project/cb1982ed-db09-409e-8af5-5bbd40e248f4    │
+│                                                                          │
+│ 2. For each service (hammer-orchestrator, local-auth):                  │
+│    • Click service card                                                 │
+│    • Settings → Source                                                  │
+│    • "Connect to GitHub Repository"                                     │
+│    • Select: Brand-Beacon/Sepulki                                       │
+│    • Branch: master                                                     │
+│    • Root Directory: /                                                  │
+│    • Builder: Dockerfile                                                │
+│    • Dockerfile Path: Dockerfile.railway                                │
+│    • Click "Deploy"                                                     │
+│                                                                          │
+│ 3. Monitor deployment logs:                                             │
+│    railway service <service-name>                                       │
+│    railway logs -f                                                      │
+│                                                                          │
+│ 4. Verify health checks:                                                │
+│    railway domain  # Get URL                                            │
+│    curl https://<url>/health                                            │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ DOCUMENTATION                                                            │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│ Quick Start: /RAILWAY_QUICK_START.md                                    │
+│ Complete Guide: /docs/RAILWAY_GITHUB_CONNECTION_COMPLETE.md             │
+│ Manual Setup: /docs/railway-github-manual-setup.md                      │
+│ Status Report: /docs/railway-deployment-status.md                       │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ SUCCESS CRITERIA                                                         │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│ ✓ Both services show "Active" status                                    │
+│ ✓ Health endpoints return {"status":"ok"}                               │
+│ ✓ No errors in deployment logs                                          │
+│ ✓ GraphQL endpoint responds                                             │
+│ ✓ Authentication works                                                  │
+│ ✓ Auto-deploy on git push works                                         │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────┐
+│ SUPPORT                                                                  │
+├─────────────────────────────────────────────────────────────────────────┤
+│                                                                          │
+│ Railway Docs: https://docs.railway.app                                  │
+│ Railway Status: https://status.railway.app                              │
+│ Project: cb1982ed-db09-409e-8af5-5bbd40e248f4                           │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+
+Estimated time to complete: 5-10 minutes
+Last updated: 2025-11-05

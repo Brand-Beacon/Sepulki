@@ -132,8 +132,8 @@ export const isProduction = () => env.isProduction
 export const shouldUseMockAuth = () => env.isDevelopment && env.authProviders.includes('mock')
 export const shouldUseRealAuth = () => env.useRealAuth
 
-// Development helpers
-if (env.isDevelopment) {
+// Development helpers (only log in browser, not during SSR)
+if (env.isDevelopment && typeof window !== 'undefined') {
   console.log('Sepulki Environment Configuration:', {
     platform: env.deploymentPlatform,
     auth: env.authProviders,
