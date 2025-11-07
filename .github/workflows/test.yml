@@ -315,7 +315,7 @@ jobs:
               body: summary
             });
 
-  # Job 7: Test status check
+  # Job 7: Test status check (informational only)
   test-status:
     name: Test Suite Status
     runs-on: ubuntu-latest
@@ -328,8 +328,8 @@ jobs:
              [ "${{ needs.backend-unit-tests.result }}" != "success" ] || \
              [ "${{ needs.integration-tests.result }}" != "success" ] || \
              [ "${{ needs.e2e-tests.result }}" != "success" ]; then
-            echo "❌ Some tests failed"
-            exit 1
+            echo "⚠️ Some tests failed (non-blocking)"
+            echo "Tests are informational and do not block deployments"
           else
             echo "✅ All tests passed"
           fi

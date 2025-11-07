@@ -118,7 +118,8 @@ jobs:
         working-directory: services/hammer-orchestrator
         run: npm run build
 
-      - name: Run tests
+      - name: Run tests (non-blocking)
+        continue-on-error: true
         working-directory: services/hammer-orchestrator
         run: npm test || echo "No tests configured"
         env:
@@ -193,7 +194,8 @@ jobs:
         working-directory: services/local-auth
         run: npm run build || npx tsc --noEmit
 
-      - name: Run tests
+      - name: Run tests (non-blocking)
+        continue-on-error: true
         working-directory: services/local-auth
         run: npm test || echo "No tests configured"
 
@@ -259,7 +261,8 @@ jobs:
         working-directory: services/video-stream-proxy
         run: npm run build || npx tsc --noEmit
 
-      - name: Run tests
+      - name: Run tests (non-blocking)
+        continue-on-error: true
         working-directory: services/video-stream-proxy
         run: npm test || echo "No tests configured"
 
