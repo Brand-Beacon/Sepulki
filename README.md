@@ -29,9 +29,11 @@ Sepulki follows a microservices architecture with a metallurgy/smithing theme:
 
 ### Prerequisites
 
-- Node.js 18.18.0+
+- Node.js 20.19.x (LTS)
 - Docker & Docker Compose
 - Git
+
+> **Why Node 20?** Native modules such as `better-sqlite3` (pulled in by the Claude Flow tooling) currently ship prebuilt binaries for Node 20.x. Using Node 22+ causes install/runtime failures, so we pin the toolchain to 20.19.x.
 
 ### Development Setup
 
@@ -120,6 +122,26 @@ Sepulki uses a consistent metallurgy/smithing theme throughout:
 - **Temper** - Optimize  
 - **Quench** - Deploy
 - **Recall** - Rollback
+
+## 🚀 Deployment
+
+Deployments are automated via **GitHub Actions**:
+
+- **Production**: Deploys automatically when merging to `master` branch (requires approval)
+- **Development**: Deploys automatically when merging to `dev` branch
+
+All secrets are managed in GitHub repository settings. See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for the complete deployment guide.
+
+### Quick Deploy
+
+```bash
+# Manual deployment via GitHub CLI
+gh workflow run deploy-production.yml
+```
+
+**Important:** All secrets are stored in GitHub Secrets. Never commit `.env` files or `*.secrets.json` to the repository.
+
+---
 
 ## 🔧 Development
 

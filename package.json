@@ -11,7 +11,7 @@
     ]
   },
   "engines": {
-    "node": ">=18.18.0"
+    "node": ">=20.0.0 <21"
   },
   "scripts": {
     "dev": "npm run start:simple",
@@ -58,7 +58,8 @@
     "db:test-data": "./scripts/dev-tools.sh test-data",
     "migrate": "./scripts/migrate-to-sepulki.sh",
     "clean": "npm run clean --workspaces --if-present",
-    "reset": "./scripts/dev-tools.sh reset"
+    "reset": "./scripts/dev-tools.sh reset",
+    "sync:cloud-env": "node ./scripts/sync-cloud-env.mjs"
   },
   "devDependencies": {
     "@mermaid-js/mermaid-cli": "^10.6.1",

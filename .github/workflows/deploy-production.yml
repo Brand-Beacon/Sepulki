@@ -1,0 +1,212 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'services/**'
+      - 'packages/**'
+      - 'apps/forge-ui/**'
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  deploy-backend:
+    name: Deploy Backend Services to Railway
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Link Railway project
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          railway link ${{ secrets.RAILWAY_PROJECT_ID }}
+
+      - name: Deploy Hammer Orchestrator
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          echo "🚀 Deploying hammer-orchestrator to production..."
+
+          railway variables set \
+            --service ${{ secrets.RAILWAY_SERVICE_HAMMER_ID }} \
+            --environment ${{ secrets.RAILWAY_ENVIRONMENT_PROD_ID }} \
+            NODE_ENV=production \
+            PORT=4000 \
+            DATABASE_URL="${{ secrets.PROD_RAILWAY_DATABASE_URL }}" \
+            REDIS_URL="${{ secrets.PROD_REDIS_URL }}" \
+            JWT_SECRET="${{ secrets.PROD_RAILWAY_JWT_SECRET }}" \
+            SESSION_SECRET="${{ secrets.PROD_RAILWAY_SESSION_SECRET }}" \
+            CORS_ORIGIN="${{ secrets.PROD_RAILWAY_CORS_ORIGIN }}"
+
+          railway up \
+            --service ${{ secrets.RAILWAY_SERVICE_HAMMER_ID }} \
+            --environment ${{ secrets.RAILWAY_ENVIRONMENT_PROD_ID }} \
+            --detach
+
+          echo "✅ Hammer orchestrator deployed"
+
+      - name: Deploy Local Auth
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          echo "🚀 Deploying local-auth to production..."
+
+          railway variables set \
+            --service ${{ secrets.RAILWAY_SERVICE_AUTH_ID }} \
+            --environment ${{ secrets.RAILWAY_ENVIRONMENT_PROD_ID }} \
+            NODE_ENV=production \
+            PORT=3001 \
+            DATABASE_URL="${{ secrets.PROD_RAILWAY_DATABASE_URL }}" \
+            REDIS_URL="${{ secrets.PROD_REDIS_URL }}" \
+            JWT_SECRET="${{ secrets.PROD_RAILWAY_JWT_SECRET }}" \
+            SESSION_SECRET="${{ secrets.PROD_RAILWAY_SESSION_SECRET }}" \
+            CORS_ORIGIN="${{ secrets.PROD_RAILWAY_CORS_ORIGIN }}"
+
+          railway up \
+            --service ${{ secrets.RAILWAY_SERVICE_AUTH_ID }} \
+            --environment ${{ secrets.RAILWAY_ENVIRONMENT_PROD_ID }} \
+            --detach
+
+          echo "✅ Local auth deployed"
+
+      - name: Wait for deployment stabilization
+        run: sleep 30
+
+      - name: Health Check - Hammer Orchestrator
+        run: |
+          echo "🔍 Checking hammer-orchestrator health..."
+          for i in {1..30}; do
+            if curl -sf "https://hammer-orchestrator-production.up.railway.app/health" > /dev/null; then
+              echo "✅ Hammer orchestrator is healthy"
+              exit 0
+            fi
+            echo "⏳ Waiting for hammer-orchestrator... ($i/30)"
+            sleep 10
+          done
+          echo "❌ Hammer orchestrator health check failed"
+          exit 1
+
+      - name: Health Check - Local Auth
+        run: |
+          echo "🔍 Checking local-auth health..."
+          for i in {1..30}; do
+            if curl -sf "https://local-auth-production.up.railway.app/health" > /dev/null; then
+              echo "✅ Local auth is healthy"
+              exit 0
+            fi
+            echo "⏳ Waiting for local-auth... ($i/30)"
+            sleep 10
+          done
+          echo "❌ Local auth health check failed"
+          exit 1
+
+  deploy-frontend:
+    name: Deploy Frontend to Vercel
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend with production env vars
+        working-directory: apps/forge-ui
+        env:
+          NEXT_PUBLIC_API_URL: ${{ secrets.PROD_NEXT_PUBLIC_API_URL }}
+          NEXT_PUBLIC_GRAPHQL_URL: ${{ secrets.PROD_NEXT_PUBLIC_GRAPHQL_URL }}
+          NEXT_PUBLIC_GRAPHQL_ENDPOINT: ${{ secrets.PROD_NEXT_PUBLIC_GRAPHQL_ENDPOINT }}
+          NEXT_PUBLIC_GRAPHQL_WS_URL: ${{ secrets.PROD_NEXT_PUBLIC_GRAPHQL_WS_URL }}
+          NEXT_PUBLIC_ISAAC_SIM_IP: ${{ secrets.PROD_NEXT_PUBLIC_ISAAC_SIM_IP }}
+          NEXT_PUBLIC_ISAAC_SIM_PORT: ${{ secrets.PROD_NEXT_PUBLIC_ISAAC_SIM_PORT }}
+          NEXTAUTH_SECRET: ${{ secrets.PROD_NEXTAUTH_SECRET }}
+          NEXTAUTH_URL: ${{ secrets.PROD_NEXTAUTH_URL }}
+          KV_URL: ${{ secrets.PROD_KV_URL }}
+          KV_REST_API_URL: ${{ secrets.PROD_KV_REST_API_URL }}
+          KV_REST_API_TOKEN: ${{ secrets.PROD_KV_REST_API_TOKEN }}
+          REDIS_URL: ${{ secrets.PROD_REDIS_URL }}
+        run: npm run build
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Deploy to Vercel Production
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        working-directory: apps/forge-ui
+        run: |
+          echo "🚀 Deploying to Vercel production..."
+
+          URL=$(vercel deploy \
+            --prod \
+            --token ${{ secrets.VERCEL_TOKEN }} \
+            --yes \
+            --build-env NEXT_PUBLIC_API_URL="${{ secrets.PROD_NEXT_PUBLIC_API_URL }}" \
+            --build-env NEXT_PUBLIC_GRAPHQL_URL="${{ secrets.PROD_NEXT_PUBLIC_GRAPHQL_URL }}" \
+            --build-env NEXT_PUBLIC_GRAPHQL_ENDPOINT="${{ secrets.PROD_NEXT_PUBLIC_GRAPHQL_ENDPOINT }}" \
+            --build-env NEXT_PUBLIC_GRAPHQL_WS_URL="${{ secrets.PROD_NEXT_PUBLIC_GRAPHQL_WS_URL }}" \
+            --build-env NEXT_PUBLIC_ISAAC_SIM_IP="${{ secrets.PROD_NEXT_PUBLIC_ISAAC_SIM_IP }}" \
+            --build-env NEXT_PUBLIC_ISAAC_SIM_PORT="${{ secrets.PROD_NEXT_PUBLIC_ISAAC_SIM_PORT }}" \
+            --build-env NEXTAUTH_SECRET="${{ secrets.PROD_NEXTAUTH_SECRET }}" \
+            --build-env NEXTAUTH_URL="${{ secrets.PROD_NEXTAUTH_URL }}" \
+            --build-env KV_URL="${{ secrets.PROD_KV_URL }}" \
+            --build-env KV_REST_API_URL="${{ secrets.PROD_KV_REST_API_URL }}" \
+            --build-env KV_REST_API_TOKEN="${{ secrets.PROD_KV_REST_API_TOKEN }}" \
+            --build-env REDIS_URL="${{ secrets.PROD_REDIS_URL }}")
+
+          echo "url=$URL" >> $GITHUB_OUTPUT
+          echo "✅ Deployed to: $URL"
+
+  notify:
+    name: Deployment Summary
+    needs: [deploy-backend, deploy-frontend]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create deployment summary
+        run: |
+          echo "# 🚀 Production Deployment Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** master" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Triggered by:** ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Services Deployed:" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Hammer Orchestrator (Railway)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Local Auth (Railway)" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Frontend (Vercel)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### URLs:" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend: https://hammer-orchestrator-production.up.railway.app" >> $GITHUB_STEP_SUMMARY
+          echo "- Auth: https://local-auth-production.up.railway.app" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend: https://sepulki-forge-2ex4yvbuu-monermakers.vercel.app" >> $GITHUB_STEP_SUMMARY

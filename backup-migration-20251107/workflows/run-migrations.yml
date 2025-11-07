@@ -1,0 +1,120 @@
+name: Run Database Migrations
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+    paths:
+      - 'infrastructure/sql/migrations/**'
+      - '.github/workflows/run-migrations.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to run migrations on'
+        required: true
+        type: choice
+        options:
+          - development
+          - production
+
+jobs:
+  validate-migrations:
+    name: Validate Migration Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check migration file format
+        run: |
+          for file in infrastructure/sql/migrations/*.sql; do
+            if [ -f "$file" ]; then
+              echo "Validating $file"
+              # Check if file is valid SQL
+              if ! grep -q "CREATE\|ALTER\|INSERT\|UPDATE" "$file"; then
+                echo "Error: $file doesn't contain valid SQL commands"
+                exit 1
+              fi
+            fi
+          done
+
+  run-migrations-dev:
+    name: Run Migrations (Development)
+    runs-on: ubuntu-latest
+    needs: validate-migrations
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/dev') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'development')
+    environment:
+      name: development
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL_DEV }}
+        run: |
+          chmod +x infrastructure/scripts/neon-setup.sh
+          ./infrastructure/scripts/neon-setup.sh
+
+      - name: Verify migrations
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL_DEV }}
+        run: |
+          psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';"
+
+  run-migrations-prod:
+    name: Run Migrations (Production)
+    runs-on: ubuntu-latest
+    needs: validate-migrations
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/master') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
+    environment:
+      name: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Backup database
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL_PROD }}
+        run: |
+          echo "Creating backup before migrations..."
+          # Neon handles backups automatically, but we can create a manual one via API if needed
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL_PROD }}
+        run: |
+          chmod +x infrastructure/scripts/neon-setup.sh
+          ./infrastructure/scripts/neon-setup.sh
+
+      - name: Verify migrations
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL_PROD }}
+        run: |
+          psql "$DATABASE_URL" -c "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public';"
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ Production migrations completed successfully"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Production migrations failed - manual intervention required"
+          exit 1

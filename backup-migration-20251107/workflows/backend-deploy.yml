@@ -7,6 +7,10 @@ on:
       - master
     paths:
       - 'services/**'
+      - 'packages/shared-types/**'
+      - 'deploy/env/**'
+      - 'package.json'
+      - 'package-lock.json'
       - '.github/workflows/backend-deploy.yml'
   workflow_dispatch:
     inputs:
@@ -99,11 +103,11 @@ jobs:
 
       - name: Run type check
         working-directory: services/hammer-orchestrator
-        run: npm run build || npx tsc --noEmit
+        run: npm run build
 
       - name: Run tests
         working-directory: services/hammer-orchestrator
-        run: npm test || echo "No tests configured"
+        run: npm test --if-present
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -129,8 +133,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./services/hammer-orchestrator
-          file: ./services/hammer-orchestrator/Dockerfile
+          context: .
+          file: ./services/hammer-orchestrator/Dockerfile.railway
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -165,11 +169,11 @@ jobs:
 
       - name: Run type check
         working-directory: services/local-auth
-        run: npm run build || npx tsc --noEmit
+        run: npm run build
 
       - name: Run tests
         working-directory: services/local-auth
-        run: npm test || echo "No tests configured"
+        run: npm test --if-present
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -195,8 +199,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./services/local-auth
-          file: ./services/local-auth/Dockerfile
+          context: .
+          file: ./services/local-auth/Dockerfile.railway
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

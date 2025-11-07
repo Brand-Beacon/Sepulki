@@ -42,3 +42,11 @@ claude-flow
 # Removed Windows wrapper files per user request
 hive-mind-prompt-*.txt
 .env.deploy
+.env.deployconfig
+
+# Secrets - use GitHub Secrets instead
+*.secrets.json
+deploy/env/*.secrets.json
+.env.production
+.env.development
+.secrets.env

@@ -19,6 +19,18 @@
 - 🟡 8 Configuration improvements needed
 - ⚠️ 3 Network security concerns
 
+> **Update (2025-11-07):** Production secrets are now intentionally centralized in `deploy/env/production.secrets.json`.  
+> Run `npm run sync:cloud-env` (or the `sync-secrets.yml` workflow) to replicate those values to Vercel and Railway.  
+> `.env.deploy` is now excluded from git and only carries local CLI tokens required to authenticate the sync script.
+
+### Secret Management Controls (2025-11-07)
+- `deploy/env/production.secrets.json` — authoritative map of every Vercel/Railway environment variable.
+- `scripts/sync-cloud-env.mjs` — idempotent sync utility invoked locally via `npm run sync:cloud-env` or automatically by `.github/workflows/sync-secrets.yml`.
+- Repository secrets required for automation:
+  - `VERCEL_TOKEN`
+  - `RAILWAY_TOKEN`
+- Manual backups: `deploy/env/vercel.production.backup.env` (current Vercel state) remains in git for auditing.
+
 ---
 
 ## 1. SECURITY AUDIT
