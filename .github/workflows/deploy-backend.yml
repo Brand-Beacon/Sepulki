@@ -328,6 +328,7 @@ jobs:
         if: needs.detect-changes.outputs.hammer == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
         run: |
           echo "🚀 Deploying hammer-orchestrator to Railway..."
           echo "Environment: ${{ github.ref == 'refs/heads/master' && 'production' || 'development' }}"
@@ -337,6 +338,7 @@ jobs:
         if: needs.detect-changes.outputs.auth == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
         run: |
           echo "🚀 Deploying local-auth to Railway..."
           echo "Environment: ${{ github.ref == 'refs/heads/master' && 'production' || 'development' }}"
@@ -346,6 +348,7 @@ jobs:
         if: needs.detect-changes.outputs.video-proxy == 'true'
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
         run: |
           echo "🚀 Deploying video-stream-proxy to Railway..."
           railway up --service=${{ secrets.RAILWAY_SERVICE_VIDEO_PROXY_ID || 'NO_SERVICE_ID' }} --detach
