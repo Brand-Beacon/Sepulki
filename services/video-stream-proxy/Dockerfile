@@ -2,17 +2,19 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files
+# Copy root package files for workspace install
 COPY package*.json ./
-COPY tsconfig.json ./
+COPY services/video-stream-proxy/package*.json ./services/video-stream-proxy/
 
-# Install dependencies
-RUN npm ci
+# Install dependencies using workspace
+RUN npm ci --workspace=@sepulki/video-stream-proxy --include-workspace-root
 
-# Copy source code
-COPY src ./src
+# Copy service files
+COPY services/video-stream-proxy/tsconfig.json ./services/video-stream-proxy/
+COPY services/video-stream-proxy/src ./services/video-stream-proxy/src
 
 # Build TypeScript
+WORKDIR /app/services/video-stream-proxy
 RUN npm run build
 
 # Expose proxy port
