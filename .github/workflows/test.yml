@@ -13,7 +13,6 @@ on:
 
 env:
   NODE_VERSION: '20'
-  PNPM_VERSION: '8'
 
 jobs:
   # Job 1: Frontend unit tests
@@ -24,25 +23,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Run frontend unit tests
-        working-directory: app
+        working-directory: apps/forge-ui
         run: |
           if [ -f "package.json" ] && grep -q "\"test\"" package.json; then
-            pnpm test -- --coverage --maxWorkers=2
+            npm test -- --coverage --maxWorkers=2
           else
             echo "No test script found, skipping..."
           fi
@@ -51,7 +45,7 @@ jobs:
         uses: codecov/codecov-action@v4
         if: success()
         with:
-          files: ./app/coverage/lcov.info
+          files: ./apps/forge-ui/coverage/lcov.info
           flags: frontend
           name: frontend-coverage
           token: ${{ secrets.CODECOV_TOKEN }}
@@ -62,7 +56,7 @@ jobs:
         if: always()
         with:
           name: frontend-coverage
-          path: app/coverage/
+          path: apps/forge-ui/coverage/
           retention-days: 7
 
   # Job 2: Backend unit tests (parallel with frontend)
@@ -140,19 +134,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Setup test database
         env:
@@ -171,7 +160,7 @@ jobs:
           NODE_ENV: test
         run: |
           if [ -f "package.json" ] && grep -q "test:integration" package.json; then
-            pnpm test:integration
+            npm run test:integration
           else
             echo "No integration tests configured"
           fi
@@ -200,41 +189,36 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Install Playwright browsers
         run: |
-          if [ -f "app/package.json" ] && grep -q "@playwright/test" app/package.json; then
-            cd app && pnpm exec playwright install --with-deps ${{ matrix.browser }}
+          if [ -f "apps/forge-ui/package.json" ] && grep -q "@playwright/test" apps/forge-ui/package.json; then
+            cd apps/forge-ui && npx playwright install --with-deps ${{ matrix.browser }}
           else
             echo "Playwright not configured, skipping..."
             exit 0
           fi
 
       - name: Build application
-        working-directory: app
-        run: pnpm build
+        working-directory: apps/forge-ui
+        run: npm run build
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
 
       - name: Run E2E tests
-        working-directory: app
+        working-directory: apps/forge-ui
         run: |
           if [ -f "package.json" ] && grep -q "@playwright/test" package.json; then
-            pnpm exec playwright test --project=${{ matrix.browser }}
+            npx playwright test --project=${{ matrix.browser }}
           else
             echo "No E2E tests found"
           fi
@@ -246,7 +230,7 @@ jobs:
         if: always()
         with:
           name: playwright-report-${{ matrix.browser }}
-          path: app/playwright-report/
+          path: apps/forge-ui/playwright-report/
           retention-days: 7
 
       - name: Upload test videos
@@ -254,7 +238,7 @@ jobs:
         if: failure()
         with:
           name: playwright-videos-${{ matrix.browser }}
-          path: app/test-results/
+          path: apps/forge-ui/test-results/
           retention-days: 7
 
   # Job 5: Performance tests
@@ -267,23 +251,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'pnpm'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Build application
-        working-directory: app
-        run: pnpm build
+        working-directory: apps/forge-ui
+        run: npm run build
 
       - name: Run Lighthouse CI
         uses: treosh/lighthouse-ci-action@v10

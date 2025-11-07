@@ -59,7 +59,11 @@
     "migrate": "./scripts/migrate-to-sepulki.sh",
     "clean": "npm run clean --workspaces --if-present",
     "reset": "./scripts/dev-tools.sh reset",
-    "sync:cloud-env": "node ./scripts/sync-cloud-env.mjs"
+    "sync:cloud-env": "node ./scripts/sync-cloud-env.mjs",
+    "deploy": "npm run deploy:backend && npm run deploy:frontend",
+    "deploy:backend": "echo '🚀 Deploying backend services to Railway...' && railway up",
+    "deploy:frontend": "echo '🚀 Deploying frontend to Vercel...' && cd apps/forge-ui && vercel --prod",
+    "deploy:preview": "cd apps/forge-ui && vercel"
   },
   "devDependencies": {
     "@mermaid-js/mermaid-cli": "^10.6.1",

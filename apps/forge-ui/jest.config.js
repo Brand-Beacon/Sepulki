@@ -10,9 +10,8 @@ const config = {
   transform: {
     '^.+\\.(ts|tsx)$': [
       'ts-jest',
-      { 
-        tsconfig: '<rootDir>/tsconfig.json', 
-        isolatedModules: true,
+      {
+        tsconfig: '<rootDir>/tsconfig.json',
         jsx: 'react-jsx'
       },
     ],

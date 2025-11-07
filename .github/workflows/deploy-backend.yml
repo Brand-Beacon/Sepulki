@@ -327,7 +327,7 @@ jobs:
         working-directory: services/hammer-orchestrator
         run: |
           echo "🚀 Deploying hammer-orchestrator to Railway..."
-          railway up --service hammer-orchestrator || railway up
+          railway up
 
       - name: Deploy Local Auth
         if: needs.detect-changes.outputs.auth == 'true'
@@ -336,7 +336,7 @@ jobs:
         working-directory: services/local-auth
         run: |
           echo "🚀 Deploying local-auth to Railway..."
-          railway up --service local-auth || railway up
+          railway up
 
       - name: Deploy Video Stream Proxy
         if: needs.detect-changes.outputs.video-proxy == 'true'
@@ -345,7 +345,7 @@ jobs:
         working-directory: services/video-stream-proxy
         run: |
           echo "🚀 Deploying video-stream-proxy to Railway..."
-          railway up --service video-stream-proxy || railway up
+          railway up
 
       - name: Deployment summary
         run: |
@@ -368,15 +368,25 @@ jobs:
 
       - name: Check Hammer Orchestrator health
         if: needs.detect-changes.outputs.hammer == 'true'
+        continue-on-error: true
         run: |
           echo "Checking hammer-orchestrator health..."
-          curl -f ${{ secrets.HAMMER_ORCHESTRATOR_URL }}/health || echo "⚠️ Health check endpoint not available"
+          if [ -n "${{ secrets.HAMMER_ORCHESTRATOR_URL }}" ]; then
+            curl -f ${{ secrets.HAMMER_ORCHESTRATOR_URL }}/health || echo "⚠️ Health check endpoint not available"
+          else
+            echo "⚠️ HAMMER_ORCHESTRATOR_URL not configured, skipping health check"
+          fi
 
       - name: Check Local Auth health
         if: needs.detect-changes.outputs.auth == 'true'
+        continue-on-error: true
         run: |
           echo "Checking local-auth health..."
-          curl -f ${{ secrets.LOCAL_AUTH_URL }}/health || echo "⚠️ Health check endpoint not available"
+          if [ -n "${{ secrets.LOCAL_AUTH_URL }}" ]; then
+            curl -f ${{ secrets.LOCAL_AUTH_URL }}/health || echo "⚠️ Health check endpoint not available"
+          else
+            echo "⚠️ LOCAL_AUTH_URL not configured, skipping health check"
+          fi
 
       - name: Health check summary
         run: |

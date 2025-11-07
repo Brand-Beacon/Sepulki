@@ -19,6 +19,10 @@ jobs:
   validate-deployment:
     name: Validate Deployment Infrastructure
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
 
     # Only run on successful deployments
     if: github.event_name == 'workflow_dispatch' || github.event.deployment_status.state == 'success'
@@ -76,7 +80,8 @@ jobs:
             });
 
       - name: Send Slack notification
-        if: always()
+        if: always() && secrets.SLACK_WEBHOOK_URL != ''
+        continue-on-error: true
         uses: slackapi/slack-github-action@v1
         with:
           payload: |
@@ -122,11 +127,15 @@ jobs:
   notify-rollback:
     name: Notify Rollback Required
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
     needs: validate-deployment
     if: failure()
 
     steps:
       - name: Create rollback issue
+        continue-on-error: true
         uses: actions/github-script@v7
         with:
           script: |
