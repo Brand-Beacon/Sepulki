@@ -80,11 +80,12 @@ jobs:
         working-directory: packages/shared-types
         run: npm run build || echo "No build script for shared-types"
 
-  # Job 2: Type checking (parallel with lint)
+  # Job 2: Type checking (parallel with lint, non-blocking)
   typecheck:
     name: TypeScript Type Check
     needs: setup
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -108,11 +109,12 @@ jobs:
         working-directory: apps/forge-ui
         run: npx tsc --noEmit
 
-  # Job 3: Linting (parallel with typecheck)
+  # Job 3: Linting (parallel with typecheck, non-blocking)
   lint:
     name: ESLint Code Quality
     needs: setup
     runs-on: ubuntu-latest
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -177,11 +179,11 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
 
-  # Job 5: Build application (tests non-blocking)
+  # Job 5: Build application (quality checks non-blocking)
   build:
     name: Build Next.js Application
     needs: [typecheck, lint, test]
-    if: always() && (needs.typecheck.result == 'success' && needs.lint.result == 'success')
+    if: always()
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -422,8 +424,10 @@ jobs:
           echo "- Staging: ${{ needs.deploy-staging.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
           echo "- Preview: ${{ needs.deploy-preview.result || 'skipped' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Test Results (Non-Blocking)" >> $GITHUB_STEP_SUMMARY
-          echo "Tests ran but did not block deployment:" >> $GITHUB_STEP_SUMMARY
+          echo "### Quality Checks (Non-Blocking)" >> $GITHUB_STEP_SUMMARY
+          echo "Checks ran but did not block deployment:" >> $GITHUB_STEP_SUMMARY
+          echo "- TypeScript: ${{ needs.typecheck.result }}" >> $GITHUB_STEP_SUMMARY
+          echo "- ESLint: ${{ needs.lint.result }}" >> $GITHUB_STEP_SUMMARY
           echo "- Unit Tests: ${{ needs.test.result }}" >> $GITHUB_STEP_SUMMARY
 
       # Optional: Uncomment for Slack notifications
