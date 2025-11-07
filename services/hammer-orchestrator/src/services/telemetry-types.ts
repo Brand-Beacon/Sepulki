@@ -35,7 +35,7 @@ export interface GPSCoordinate {
   latitude: number;
   longitude: number;
   altitude?: number;
-  timestamp: Date;
+  timestamp?: Date;
 }
 
 /**

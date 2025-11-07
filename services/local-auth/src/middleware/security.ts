@@ -47,7 +47,7 @@ export const helmetMiddleware = helmet({
   crossOriginOpenerPolicy: { policy: 'same-origin' },
   crossOriginResourcePolicy: { policy: 'same-origin' },
   dnsPrefetchControl: { allow: false },
-  frameguard: { action: 'deny' },
+  frameguard: { action: 'deny' } as const,
   hidePoweredBy: true,
   hsts: isProduction
     ? {
@@ -61,7 +61,6 @@ export const helmetMiddleware = helmet({
   originAgentCluster: true,
   permittedCrossDomainPolicies: { permittedPolicies: 'none' },
   referrerPolicy: { policy: 'no-referrer' },
-  xssFilter: true,
 });
 
 /**
@@ -191,7 +190,7 @@ export const speedLimiter = slowDown({
  */
 const csrfSecret = process.env.CSRF_SECRET || 'super-secret-csrf-key-change-in-production';
 
-export const { doubleCsrfProtection, generateToken } = doubleCsrf({
+const csrfConfig = doubleCsrf({
   getSecret: () => csrfSecret,
   cookieName: '__Host-psifi.x-csrf-token',
   cookieOptions: {
@@ -202,16 +201,22 @@ export const { doubleCsrfProtection, generateToken } = doubleCsrf({
   },
   size: 64,
   ignoredMethods: ['GET', 'HEAD', 'OPTIONS'],
-  getTokenFromRequest: (req) => {
+  getCsrfTokenFromRequest: (req: Request) => {
     return req.headers['x-csrf-token'] as string;
   },
+  getSessionIdentifier: (req: Request) => {
+    // Use IP address as session identifier for stateless CSRF protection
+    return (req.headers['x-forwarded-for'] as string || req.ip || 'unknown');
+  },
 });
+
+export const doubleCsrfProtection = csrfConfig.doubleCsrfProtection;
 
 /**
  * CSRF token endpoint
  */
 export const csrfTokenEndpoint = (req: Request, res: Response) => {
-  const token = generateToken(req, res);
+  const token = csrfConfig.generateCsrfToken(req, res);
   res.json({ csrfToken: token });
 };
 

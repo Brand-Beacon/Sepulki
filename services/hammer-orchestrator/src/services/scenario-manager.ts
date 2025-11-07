@@ -103,7 +103,7 @@ export class ScenarioManager {
       description: '12 autonomous lawn mowers providing comprehensive property coverage',
       fleetId,
       robotCount: numRobots,
-      baseLocation,
+      baseLocation: { ...baseLocation, timestamp: new Date() },
       areaSize: propertySize,
       workPattern: {
         type: 'grid',
@@ -224,7 +224,7 @@ export class ScenarioManager {
       description: '20 autonomous mobile robots handling inventory operations',
       fleetId,
       robotCount: numRobots,
-      baseLocation,
+      baseLocation: { ...baseLocation, timestamp: new Date() },
       areaSize: warehouseSize,
       workPattern: {
         type: 'waypoint',
@@ -314,7 +314,7 @@ export class ScenarioManager {
       description: '8 autonomous farm robots for planting, monitoring, and harvesting',
       fleetId,
       robotCount: numRobots,
-      baseLocation,
+      baseLocation: { ...baseLocation, timestamp: new Date() },
       areaSize: fieldSize,
       workPattern: {
         type: 'grid',

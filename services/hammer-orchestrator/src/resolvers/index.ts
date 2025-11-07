@@ -11,7 +11,7 @@ import { factoryFloorResolvers } from './factory-floor';
 import { edictMutations } from './edict-mutations';
 import type { Resolvers } from './types';
 
-export const resolvers: Resolvers = {
+export const resolvers = {
   // Scalar types
   DateTime: DateTimeResolver,
   JSON: JSONResolver,
@@ -47,7 +47,7 @@ export const resolvers: Resolvers = {
   Subscription: {
     ...telemetryResolvers.Subscription,
     ...subscriptionResolvers,
-  },
+  } as any,
 
   // Type resolvers
   Sepulka: sepulkaResolvers.Sepulka,
@@ -58,5 +58,5 @@ export const resolvers: Resolvers = {
   Task: taskResolvers.Task,
   Run: taskResolvers.Run,
   Smith: authResolvers.Smith,
-  FactoryFloor: factoryFloorResolvers.FactoryFloor,
+  FactoryFloor: factoryFloorResolvers.FactoryFloor as any,
 };

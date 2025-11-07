@@ -1,14 +1,14 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
-  "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "Dockerfile.railway"
-  },
-  "deploy": {
-    "startCommand": null,
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10,
-    "healthcheckPath": "/health",
-    "healthcheckTimeout": 100
+  "version": "2.0",
+  "monorepo": {
+    "services": {
+      "hammer-orchestrator": {
+        "root": "services/hammer-orchestrator"
+      },
+      "local-auth": {
+        "root": "services/local-auth"
+      }
+    }
   }
 }

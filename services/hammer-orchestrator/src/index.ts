@@ -65,7 +65,7 @@ async function startServer() {
   // Create Apollo Server
   const server = new ApolloServer({
     typeDefs,
-    resolvers,
+    resolvers: resolvers as any,
     plugins: [
       ApolloServerPluginLandingPageLocalDefault({ embed: true }),
     ],

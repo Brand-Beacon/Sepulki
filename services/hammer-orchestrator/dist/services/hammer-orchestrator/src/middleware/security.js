@@ -16,7 +16,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.applySecurityMiddleware = exports.securityLogger = exports.requestTimeout = exports.requestSizeLimit = exports.additionalSecurityHeaders = exports.sanitizeInput = exports.speedLimiter = exports.corsMiddleware = exports.helmetMiddleware = void 0;
 const helmet_1 = __importDefault(require("helmet"));
 const express_slow_down_1 = __importDefault(require("express-slow-down"));
-const express_rate_limit_1 = require("express-rate-limit");
 /**
  * Environment configuration
  */
@@ -65,7 +64,7 @@ const contentSecurityPolicy = isProduction
  * Configures various security-related HTTP headers
  */
 exports.helmetMiddleware = (0, helmet_1.default)({
-    contentSecurityPolicy,
+    contentSecurityPolicy: contentSecurityPolicy,
     crossOriginEmbedderPolicy: isProduction,
     crossOriginOpenerPolicy: isProduction ? { policy: 'same-origin' } : false,
     crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -127,7 +126,7 @@ exports.speedLimiter = (0, express_slow_down_1.default)({
         if (Array.isArray(forwardedFor) && forwardedFor.length > 0) {
             return forwardedFor[0];
         }
-        return (0, express_rate_limit_1.ipKeyGenerator)(req);
+        return req.ip || 'unknown';
     },
 });
 /**

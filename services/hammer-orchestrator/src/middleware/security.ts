@@ -32,7 +32,7 @@ const allowedOrigins = isDevelopment
  * Content Security Policy configuration
  * Strict in production, relaxed in development for easier debugging
  */
-const contentSecurityPolicy: boolean | helmet.HelmetOptions['contentSecurityPolicy'] = isProduction
+const contentSecurityPolicy = isProduction
   ? {
       directives: {
         defaultSrc: ["'self'"],
@@ -47,7 +47,7 @@ const contentSecurityPolicy: boolean | helmet.HelmetOptions['contentSecurityPoli
         baseUri: ["'self'"],
         formAction: ["'self'"],
         frameAncestors: ["'none'"],
-      } as helmet.ContentSecurityPolicyOptions['directives'],
+      },
     }
   : {
       directives: {
@@ -57,7 +57,7 @@ const contentSecurityPolicy: boolean | helmet.HelmetOptions['contentSecurityPoli
         imgSrc: ["'self'", 'data:', 'https:', 'http:'],
         connectSrc: ["'self'", 'ws:', 'wss:'],
         fontSrc: ["'self'", 'data:'],
-      } as helmet.ContentSecurityPolicyOptions['directives'],
+      },
     };
 
 /**
@@ -65,7 +65,7 @@ const contentSecurityPolicy: boolean | helmet.HelmetOptions['contentSecurityPoli
  * Configures various security-related HTTP headers
  */
 export const helmetMiddleware = helmet({
-  contentSecurityPolicy,
+  contentSecurityPolicy: contentSecurityPolicy as any,
   crossOriginEmbedderPolicy: isProduction,
   crossOriginOpenerPolicy: isProduction ? { policy: 'same-origin' } : false,
   crossOriginResourcePolicy: { policy: 'cross-origin' },
@@ -140,7 +140,7 @@ export const speedLimiter = slowDown({
       return forwardedFor[0];
     }
 
-    return ipKeyGenerator(req);
+    return req.ip || 'unknown';
   },
 });
 

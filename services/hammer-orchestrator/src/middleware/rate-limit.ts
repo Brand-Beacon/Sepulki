@@ -10,7 +10,7 @@
  * - Automatic retry-after headers
  */
 
-import rateLimit, { RateLimitRequestHandler, ipKeyGenerator } from 'express-rate-limit';
+import rateLimit, { RateLimitRequestHandler } from 'express-rate-limit';
 import { Request, Response } from 'express';
 import Redis from 'ioredis';
 
@@ -82,7 +82,7 @@ const resolveClientIp = (req: Request): string => {
     return forwardedFor[0];
   }
 
-  return ipKeyGenerator(req);
+  return req.ip || 'unknown';
 };
 
 const keyGenerator = (req: Request): string => {

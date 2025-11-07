@@ -5,7 +5,7 @@
 # GraphQL API gateway and fleet orchestration service
 
 # ==========================================
-# STAGE 1: Dependencies
+# STAGE 1: Production Dependencies
 # ==========================================
 FROM node:18-alpine AS deps
 
@@ -24,20 +24,44 @@ COPY services/hammer-orchestrator/package.json ./services/hammer-orchestrator/
 COPY packages/shared-types/package.json ./packages/shared-types/
 COPY packages/graphql-schema/package.json ./packages/graphql-schema/
 
-# Install dependencies with production optimizations
+# Install production dependencies only
 RUN npm ci --only=production --ignore-scripts && \
     npm cache clean --force
 
 # ==========================================
-# STAGE 2: Builder
+# STAGE 2: Build Dependencies (includes dev deps)
+# ==========================================
+FROM node:18-alpine AS build-deps
+
+# Install dependencies for native modules
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    libc6-compat
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json package-lock.json* ./
+COPY services/hammer-orchestrator/package.json ./services/hammer-orchestrator/
+COPY packages/shared-types/package.json ./packages/shared-types/
+COPY packages/graphql-schema/package.json ./packages/graphql-schema/
+
+# Install ALL dependencies (including TypeScript)
+RUN npm ci --ignore-scripts && \
+    npm cache clean --force
+
+# ==========================================
+# STAGE 3: Builder
 # ==========================================
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/services/hammer-orchestrator/node_modules ./services/hammer-orchestrator/node_modules
+# Copy ALL dependencies from build-deps stage (includes TypeScript)
+COPY --from=build-deps /app/node_modules ./node_modules
+COPY --from=build-deps /app/services/hammer-orchestrator/node_modules ./services/hammer-orchestrator/node_modules
 
 # Copy source code
 COPY packages/shared-types ./packages/shared-types
@@ -49,7 +73,7 @@ WORKDIR /app/services/hammer-orchestrator
 RUN npm run build
 
 # ==========================================
-# STAGE 3: Runner (Production)
+# STAGE 4: Runner (Production)
 # ==========================================
 FROM node:18-alpine AS runner
 

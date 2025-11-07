@@ -6,7 +6,7 @@ import { PubSub } from 'graphql-subscriptions'
 
 // Create PubSub instance for subscriptions
 // In production, this would use Redis pub/sub
-export const pubsub = new PubSub()
+export const pubsub = new PubSub() as any
 
 // Subscription channel names
 export const SUBSCRIPTION_CHANNELS = {
@@ -38,7 +38,7 @@ export const subscriptionResolvers = {
   bellowsStream: {
     subscribe: async (parent: any, { fleetId }: any, context: Context) => {
       await requirePermission(context, Permission.VIEW_BELLOWS)
-      
+
       return withFilter(
         () => pubsub.asyncIterator([SUBSCRIPTION_CHANNELS.BELLOWS_STREAM]),
         (payload, variables) => {
@@ -70,7 +70,7 @@ export const subscriptionResolvers = {
 
   policyBreaches: {
     subscribe: async (parent: any, { severity }: any, context: Context) => {
-      await requirePermission(context, Permission.VIEW_POLICY)
+      await requirePermission(context, Permission.MANAGE_FLEET)
       
       return withFilter(
         () => pubsub.asyncIterator([SUBSCRIPTION_CHANNELS.POLICY_BREACHES]),
