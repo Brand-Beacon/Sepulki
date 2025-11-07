@@ -110,7 +110,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: services/hammer-orchestrator/package-lock.json
 
       - name: Install root dependencies
         run: npm ci --legacy-peer-deps
@@ -193,7 +192,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: services/local-auth/package-lock.json
 
       - name: Install dependencies
         working-directory: services/local-auth
@@ -260,7 +258,6 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
-          cache-dependency-path: services/video-stream-proxy/package-lock.json
 
       - name: Install dependencies
         working-directory: services/video-stream-proxy
