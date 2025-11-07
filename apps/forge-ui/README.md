@@ -22,3 +22,4 @@ Spec JSON mode:
 Testing:
 - Unit: `npm run test -w @artifex/web` (no tests included in MVP)
 - E2E (optional): `npm run test:e2e -w @artifex/web` once Playwright tests are added
+ 
