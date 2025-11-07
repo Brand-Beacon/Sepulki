@@ -315,45 +315,38 @@ jobs:
       (needs.build-auth.result == 'success' || needs.build-auth.result == 'skipped') &&
       (needs.build-video-proxy.result == 'success' || needs.build-video-proxy.result == 'skipped')
     runs-on: ubuntu-latest
+    container: ghcr.io/railwayapp/cli:latest
     environment:
       name: ${{ github.ref == 'refs/heads/master' && 'production' || github.ref == 'refs/heads/staging' && 'staging' || 'development' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-
-      - name: Install Railway CLI
-        run: npm i -g @railway/cli
-
       - name: Deploy Hammer Orchestrator
         if: needs.detect-changes.outputs.hammer == 'true'
+        working-directory: services/hammer-orchestrator
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        working-directory: services/hammer-orchestrator
         run: |
           echo "🚀 Deploying hammer-orchestrator to Railway..."
           echo "Environment: ${{ github.ref == 'refs/heads/master' && 'production' || 'development' }}"
-          railway up --service=${{ secrets.RAILWAY_SERVICE_HAMMER_ID }} --environment=${{ github.ref == 'refs/heads/master' && secrets.RAILWAY_ENVIRONMENT_PROD_ID || secrets.RAILWAY_ENVIRONMENT_DEV_ID }} --detach
+          railway up --service=${{ secrets.RAILWAY_SERVICE_HAMMER_ID }} --detach
 
       - name: Deploy Local Auth
         if: needs.detect-changes.outputs.auth == 'true'
+        working-directory: services/local-auth
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        working-directory: services/local-auth
         run: |
           echo "🚀 Deploying local-auth to Railway..."
           echo "Environment: ${{ github.ref == 'refs/heads/master' && 'production' || 'development' }}"
-          railway up --service=${{ secrets.RAILWAY_SERVICE_AUTH_ID }} --environment=${{ github.ref == 'refs/heads/master' && secrets.RAILWAY_ENVIRONMENT_PROD_ID || secrets.RAILWAY_ENVIRONMENT_DEV_ID }} --detach
+          railway up --service=${{ secrets.RAILWAY_SERVICE_AUTH_ID }} --detach
 
       - name: Deploy Video Stream Proxy
         if: needs.detect-changes.outputs.video-proxy == 'true'
+        working-directory: services/video-stream-proxy
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        working-directory: services/video-stream-proxy
         run: |
           echo "🚀 Deploying video-stream-proxy to Railway..."
           railway up --service=${{ secrets.RAILWAY_SERVICE_VIDEO_PROXY_ID || 'NO_SERVICE_ID' }} --detach

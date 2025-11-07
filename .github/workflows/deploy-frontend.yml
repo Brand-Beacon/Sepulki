@@ -182,7 +182,7 @@ jobs:
   # Job 5: Build application (quality checks non-blocking)
   build:
     name: Build Next.js Application
-    needs: [typecheck, lint, test]
+    needs: [setup, typecheck, lint, test]
     if: always()
     runs-on: ubuntu-latest
     strategy:
@@ -329,6 +329,8 @@ jobs:
     needs: build
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
     environment:
       name: preview
       url: ${{ steps.deploy.outputs.url }}
@@ -395,7 +397,7 @@ jobs:
   # Job 10: Notify on deployment status
   notify:
     name: Notify Deployment Status
-    needs: [deploy-production, deploy-staging, deploy-preview]
+    needs: [typecheck, lint, test, deploy-production, deploy-staging, deploy-preview]
     if: always()
     runs-on: ubuntu-latest
     steps:
