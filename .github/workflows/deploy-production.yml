@@ -32,33 +32,17 @@ jobs:
       - name: Install Railway CLI
         run: npm install -g @railway/cli
 
-      - name: Link Railway project
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: |
-          railway link ${{ secrets.RAILWAY_PROJECT_ID }}
-
       - name: Deploy Hammer Orchestrator
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
           echo "🚀 Deploying hammer-orchestrator to production..."
 
-          railway variables set \
-            --service ${{ secrets.RAILWAY_SERVICE_HAMMER_ID }} \
-            --environment ${{ secrets.RAILWAY_ENVIRONMENT_PROD_ID }} \
-            NODE_ENV=production \
-            PORT=4000 \
-            DATABASE_URL="${{ secrets.PROD_RAILWAY_DATABASE_URL }}" \
-            REDIS_URL="${{ secrets.PROD_REDIS_URL }}" \
-            JWT_SECRET="${{ secrets.PROD_RAILWAY_JWT_SECRET }}" \
-            SESSION_SECRET="${{ secrets.PROD_RAILWAY_SESSION_SECRET }}" \
-            CORS_ORIGIN="${{ secrets.PROD_RAILWAY_CORS_ORIGIN }}"
+          # Navigate to service directory
+          cd services/hammer-orchestrator
 
-          railway up \
-            --service ${{ secrets.RAILWAY_SERVICE_HAMMER_ID }} \
-            --environment ${{ secrets.RAILWAY_ENVIRONMENT_PROD_ID }} \
-            --detach
+          # Deploy using Railway CLI with token and service context
+          railway up --detach
 
           echo "✅ Hammer orchestrator deployed"
 
@@ -68,21 +52,11 @@ jobs:
         run: |
           echo "🚀 Deploying local-auth to production..."
 
-          railway variables set \
-            --service ${{ secrets.RAILWAY_SERVICE_AUTH_ID }} \
-            --environment ${{ secrets.RAILWAY_ENVIRONMENT_PROD_ID }} \
-            NODE_ENV=production \
-            PORT=3001 \
-            DATABASE_URL="${{ secrets.PROD_RAILWAY_DATABASE_URL }}" \
-            REDIS_URL="${{ secrets.PROD_REDIS_URL }}" \
-            JWT_SECRET="${{ secrets.PROD_RAILWAY_JWT_SECRET }}" \
-            SESSION_SECRET="${{ secrets.PROD_RAILWAY_SESSION_SECRET }}" \
-            CORS_ORIGIN="${{ secrets.PROD_RAILWAY_CORS_ORIGIN }}"
+          # Navigate to service directory
+          cd services/local-auth
 
-          railway up \
-            --service ${{ secrets.RAILWAY_SERVICE_AUTH_ID }} \
-            --environment ${{ secrets.RAILWAY_ENVIRONMENT_PROD_ID }} \
-            --detach
+          # Deploy using Railway CLI
+          railway up --detach
 
           echo "✅ Local auth deployed"
 
