@@ -3,6 +3,7 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "services/local-auth/Dockerfile.railway",
+    "buildContext": ".",
     "watchPatterns": [
       "services/local-auth/**"
     ]

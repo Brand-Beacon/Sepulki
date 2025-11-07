@@ -18,8 +18,9 @@ RUN apk add --no-cache \
 
 WORKDIR /app
 
-# Copy package files
-COPY services/local-auth/package.json services/local-auth/package-lock.json* ./
+# Copy package files for workspace
+COPY package.json package-lock.json* ./
+COPY services/local-auth/package.json ./services/local-auth/
 
 # Install dependencies with production optimizations
 RUN npm ci --only=production --ignore-scripts && \
@@ -32,13 +33,19 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
+# Copy workspace package files
+COPY package.json package-lock.json* ./
+COPY services/local-auth/package.json ./services/local-auth/
+
+# Install ALL dependencies (including dev) for build
+RUN npm ci --ignore-scripts && \
+    npm cache clean --force
 
 # Copy source code
-COPY services/local-auth ./
+COPY services/local-auth ./services/local-auth
 
 # Build TypeScript
+WORKDIR /app/services/local-auth
 RUN npm run build
 
 # ==========================================
@@ -57,10 +64,14 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 # Copy production dependencies
 COPY --from=deps --chown=auth:nodejs /app/node_modules ./node_modules
+COPY --from=deps --chown=auth:nodejs /app/services/local-auth/node_modules ./services/local-auth/node_modules
 
 # Copy built application
-COPY --from=builder --chown=auth:nodejs /app/dist ./dist
-COPY --from=builder --chown=auth:nodejs /app/package.json ./
+COPY --from=builder --chown=auth:nodejs /app/services/local-auth/dist ./services/local-auth/dist
+COPY --from=builder --chown=auth:nodejs /app/services/local-auth/package.json ./services/local-auth/
+
+# Set working directory
+WORKDIR /app/services/local-auth
 
 # Switch to non-root user
 USER auth

@@ -3,6 +3,7 @@
   "build": {
     "builder": "DOCKERFILE",
     "dockerfilePath": "services/hammer-orchestrator/Dockerfile.railway",
+    "rootDirectory": "/",
     "watchPatterns": [
       "services/hammer-orchestrator/**",
       "packages/**"
