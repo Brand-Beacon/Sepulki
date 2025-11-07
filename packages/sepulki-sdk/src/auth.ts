@@ -3,7 +3,8 @@ import type {
   AuthSession, 
   LoginCredentials, 
   LoginResponse, 
-  RefreshTokenRequest 
+  RefreshTokenRequest,
+  Permission
 } from '@sepulki/shared-types';
 
 export interface AuthStorage {
@@ -225,7 +226,7 @@ export class AuthManager {
     return now < expiresAt;
   }
 
-  hasPermission(permission: string): boolean {
+  hasPermission(permission: Permission): boolean {
     const smith = this.getCurrentSmith();
     const session = this.getSession();
 

@@ -5,7 +5,7 @@
   "main": "schema.graphql",
   "scripts": {
     "validate": "graphql-schema-linter schema.graphql",
-    "build": "cp schema.graphql dist/schema.graphql"
+    "build": "mkdir -p dist && cp schema.graphql dist/schema.graphql"
   },
   "keywords": ["sepulki", "robotics", "graphql", "schema"],
   "devDependencies": {

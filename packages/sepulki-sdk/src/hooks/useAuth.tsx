@@ -1,5 +1,5 @@
 import { useState, useEffect, useContext, createContext, ReactNode } from 'react';
-import type { Smith, AuthSession } from '@sepulki/shared-types';
+import type { Smith, AuthSession, Permission } from '@sepulki/shared-types';
 import { SepulkiClient } from '../client';
 
 export interface AuthContextValue {
@@ -9,7 +9,7 @@ export interface AuthContextValue {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  hasPermission: (permission: string) => boolean;
+  hasPermission: (permission: Permission) => boolean;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -56,7 +56,7 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
     }
   };
 
-  const hasPermission = (permission: string): boolean => {
+  const hasPermission = (permission: Permission): boolean => {
     return client.auth.hasPermission(permission);
   };
 

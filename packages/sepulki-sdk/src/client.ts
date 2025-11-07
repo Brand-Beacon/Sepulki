@@ -13,10 +13,15 @@ import { createClient as createWSClient } from 'graphql-ws';
 
 import { AuthManager } from './auth';
 import type { SepulkiClientConfig } from './types';
+import { resolveWebsocketUrl } from './utils';
 
 export class SepulkiClient {
   public apollo: ApolloClient<any>;
   public auth: AuthManager;
+  public query!: ApolloClient<any>['query'];
+  public mutate!: ApolloClient<any>['mutate'];
+  public subscribe!: ApolloClient<any>['subscribe'];
+  public watchQuery!: ApolloClient<any>['watchQuery'];
   
   constructor(config: SepulkiClientConfig) {
     this.auth = new AuthManager({
@@ -32,7 +37,7 @@ export class SepulkiClient {
     // WebSocket Link for subscriptions
     const wsLink = new WebSocketLink(
       createWSClient({
-        url: config.websocketUrl || `${config.apiUrl.replace('http', 'ws')}/graphql`,
+        url: resolveWebsocketUrl(config.apiUrl, config.websocketUrl),
         connectionParams: () => ({
           authToken: this.auth.getToken()
         })
@@ -127,6 +132,11 @@ export class SepulkiClient {
         }
       }
     });
+
+    this.query = this.apollo.query.bind(this.apollo);
+    this.mutate = this.apollo.mutate.bind(this.apollo);
+    this.subscribe = this.apollo.subscribe.bind(this.apollo);
+    this.watchQuery = this.apollo.watchQuery.bind(this.apollo);
   }
 
   // Convenience methods
@@ -139,7 +149,7 @@ export class SepulkiClient {
     return this.auth.logout();
   }
 
-  async getCurrentSmith() {
+  getCurrentSmith() {
     return this.auth.getCurrentSmith();
   }
 
@@ -147,9 +157,4 @@ export class SepulkiClient {
     return this.auth.isAuthenticated();
   }
 
-  // GraphQL operation helpers
-  query = this.apollo.query.bind(this.apollo);
-  mutate = this.apollo.mutate.bind(this.apollo);
-  subscribe = this.apollo.subscribe.bind(this.apollo);
-  watchQuery = this.apollo.watchQuery.bind(this.apollo);
 }
