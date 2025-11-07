@@ -43,10 +43,10 @@ jobs:
     name: Detect Changed Services
     runs-on: ubuntu-latest
     outputs:
-      hammer: ${{ steps.filter.outputs.hammer }}
-      auth: ${{ steps.filter.outputs.auth }}
-      video-proxy: ${{ steps.filter.outputs.video-proxy }}
-      any: ${{ steps.filter.outputs.any }}
+      hammer: ${{ steps.deploy.outputs.hammer }}
+      auth: ${{ steps.deploy.outputs.auth }}
+      video-proxy: ${{ steps.deploy.outputs.video-proxy }}
+      any: ${{ steps.deploy.outputs.any }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -68,20 +68,29 @@ jobs:
             any:
               - 'services/**'
 
-      - name: Override for manual workflow
-        if: github.event_name == 'workflow_dispatch'
+      - name: Set deployment flags
+        id: deploy
         run: |
-          SERVICE="${{ github.event.inputs.service }}"
-          if [ "$SERVICE" == "all" ] || [ "$SERVICE" == "hammer-orchestrator" ]; then
+          # If workflow_dispatch, use user selection
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            SERVICE="${{ github.event.inputs.service }}"
+            if [ "$SERVICE" == "all" ] || [ "$SERVICE" == "hammer-orchestrator" ]; then
+              echo "hammer=true" >> $GITHUB_OUTPUT
+            fi
+            if [ "$SERVICE" == "all" ] || [ "$SERVICE" == "local-auth" ]; then
+              echo "auth=true" >> $GITHUB_OUTPUT
+            fi
+            if [ "$SERVICE" == "all" ] || [ "$SERVICE" == "video-stream-proxy" ]; then
+              echo "video-proxy=true" >> $GITHUB_OUTPUT
+            fi
+            echo "any=true" >> $GITHUB_OUTPUT
+          else
+            # For push events, deploy all services (workflow is running, so deploy)
             echo "hammer=true" >> $GITHUB_OUTPUT
-          fi
-          if [ "$SERVICE" == "all" ] || [ "$SERVICE" == "local-auth" ]; then
             echo "auth=true" >> $GITHUB_OUTPUT
-          fi
-          if [ "$SERVICE" == "all" ] || [ "$SERVICE" == "video-stream-proxy" ]; then
             echo "video-proxy=true" >> $GITHUB_OUTPUT
+            echo "any=true" >> $GITHUB_OUTPUT
           fi
-          echo "any=true" >> $GITHUB_OUTPUT
 
   # Job 2: Build and test Hammer Orchestrator
   build-hammer:
