@@ -1,0 +1,215 @@
+# Render Blueprint for Sepulki Backend Services
+# Infrastructure as Code for monorepo deployment
+# Documentation: https://render.com/docs/infrastructure-as-code
+
+services:
+  # ==========================================
+  # HAMMER ORCHESTRATOR SERVICE
+  # Main GraphQL API and orchestration service
+  # ==========================================
+  - type: web
+    name: hammer-orchestrator
+    runtime: docker
+    region: oregon
+    plan: starter
+
+    # Monorepo configuration
+    rootDir: services/hammer-orchestrator
+    dockerfilePath: ./Dockerfile.railway
+    dockerContext: ../..
+
+    # Build settings - only rebuild when these paths change
+    buildFilter:
+      paths:
+        - services/hammer-orchestrator/**
+        - packages/shared-types/**
+
+    # Auto-deploy settings
+    autoDeploy: true
+    branch: master
+
+    # Health check endpoint
+    healthCheckPath: /health
+
+    # Environment variables
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+
+      # Database connection (set in Render dashboard)
+      - key: DATABASE_URL
+        sync: false
+
+      # Redis connection (set in Render dashboard)
+      - key: REDIS_URL
+        sync: false
+
+      # JWT configuration
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+
+      # Session configuration
+      - key: SESSION_SECRET
+        generateValue: true
+
+      # CORS configuration (update with your Vercel URL)
+      - key: CORS_ORIGIN
+        value: https://sepulki-forge-2ex4yvbuu-monermakers.vercel.app
+
+      # GraphQL configuration
+      - key: GRAPHQL_PLAYGROUND
+        value: "true"
+      - key: GRAPHQL_INTROSPECTION
+        value: "true"
+
+    # Resources
+    numInstances: 1
+
+  # ==========================================
+  # LOCAL AUTH SERVICE
+  # Authentication and user management service
+  # ==========================================
+  - type: web
+    name: local-auth
+    runtime: docker
+    region: oregon
+    plan: starter
+
+    # Monorepo configuration
+    rootDir: services/local-auth
+    dockerfilePath: ./Dockerfile.railway
+    dockerContext: ../..
+
+    # Build settings - only rebuild when this service changes
+    buildFilter:
+      paths:
+        - services/local-auth/**
+
+    # Auto-deploy settings
+    autoDeploy: true
+    branch: master
+
+    # Health check endpoint
+    healthCheckPath: /health
+
+    # Environment variables
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+
+      # Database connection (set in Render dashboard)
+      - key: DATABASE_URL
+        sync: false
+
+      # Redis connection (set in Render dashboard)
+      - key: REDIS_URL
+        sync: false
+
+      # JWT configuration
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+
+      # Password hashing
+      - key: BCRYPT_ROUNDS
+        value: "12"
+
+      # Session configuration
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: SESSION_MAX_AGE
+        value: "604800000"
+
+      # CORS configuration (update with your Vercel URL)
+      - key: CORS_ORIGIN
+        value: https://sepulki-forge-2ex4yvbuu-monermakers.vercel.app
+
+    # Resources
+    numInstances: 1
+
+  # ==========================================
+  # VIDEO STREAM PROXY SERVICE
+  # Video streaming and WebSocket proxy
+  # ==========================================
+  - type: web
+    name: video-stream-proxy
+    runtime: docker
+    region: oregon
+    plan: starter
+
+    # Monorepo configuration
+    rootDir: services/video-stream-proxy
+    dockerfilePath: ./Dockerfile
+    dockerContext: ../..
+
+    # Build settings - only rebuild when this service changes
+    buildFilter:
+      paths:
+        - services/video-stream-proxy/**
+
+    # Auto-deploy settings
+    autoDeploy: true
+    branch: master
+
+    # Health check endpoint
+    healthCheckPath: /health
+
+    # Environment variables
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8889
+
+      # Isaac Sim configuration (set in Render dashboard)
+      - key: ISAAC_SIM_IP
+        sync: false
+      - key: ISAAC_SIM_PORT
+        value: "8011"
+
+      # WebSocket configuration
+      - key: WS_HEARTBEAT_INTERVAL
+        value: "30000"
+      - key: WS_MAX_PAYLOAD
+        value: "104857600"
+
+    # Resources
+    numInstances: 1
+
+# ==========================================
+# DATABASES (Optional - if migrating from Railway)
+# ==========================================
+# Uncomment if you want Render to manage your databases
+# Otherwise, use external database providers or keep Railway databases
+
+# databases:
+#   - name: sepulki-postgres
+#     plan: starter
+#     databaseName: sepulki
+#     user: sepulki_user
+#     region: oregon
+#     ipAllowList: []  # Empty = allow all Render services
+#
+#   - name: sepulki-redis
+#     plan: starter
+#     region: oregon
+#     ipAllowList: []  # Empty = allow all Render services
+
+# ==========================================
+# ENVIRONMENT GROUPS (Optional)
+# Shared environment variables across services
+# ==========================================
+# envVarGroups:
+#   - name: shared-config
+#     envVars:
+#       - key: NODE_ENV
+#         value: production
+#       - key: LOG_LEVEL
+#         value: info
