@@ -168,7 +168,7 @@ jobs:
             NODE_VERSION=${{ env.NODE_VERSION }}
 
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: hammer-orchestrator-dist
           path: services/hammer-orchestrator/dist
