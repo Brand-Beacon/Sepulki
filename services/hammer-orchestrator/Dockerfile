@@ -1,5 +1,5 @@
 # Multi-stage Dockerfile for Hammer Orchestrator
-FROM node:18-alpine AS builder
+FROM node:25-alpine AS builder
 RUN apk add --no-cache python3 make g++
 WORKDIR /app
 COPY package*.json ./
@@ -10,7 +10,7 @@ COPY services/hammer-orchestrator ./services/hammer-orchestrator/
 WORKDIR /app/services/hammer-orchestrator
 RUN npm run build
 
-FROM node:18-alpine AS production
+FROM node:25-alpine AS production
 RUN apk add --no-cache dumb-init
 WORKDIR /app
 COPY package*.json ./
