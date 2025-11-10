@@ -124,7 +124,7 @@ jobs:
           echo "backup_id=$BACKUP_ID" >> $GITHUB_OUTPUT
 
       - name: Upload backup artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: db-backup-${{ steps.backup.outputs.backup_id }}
           path: "*.sql.gz"

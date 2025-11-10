@@ -95,7 +95,7 @@ jobs:
           fi
 
       - name: Upload ESLint results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: eslint-results
